@@ -1,0 +1,72 @@
+name: campusclaw
+
+services:
+  db:
+    image: mysql:8.0
+    restart: unless-stopped
+    environment:
+      MYSQL_RANDOM_ROOT_PASSWORD: "yes"
+      MYSQL_DATABASE: ${DB_NAME:?DB_NAME is required}
+      MYSQL_USER: ${DB_USER:?DB_USER is required}
+      MYSQL_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
+    volumes:
+      - db-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u$$MYSQL_USER -p$$MYSQL_PASSWORD --silent"]
+      interval: 5s
+      timeout: 4s
+      retries: 30
+      start_period: 20s
+    networks: [campus-internal]
+
+  api:
+    build:
+      context: ./backend
+    restart: unless-stopped
+    environment:
+      API_ADDR: ${API_ADDR:?API_ADDR is required}
+      DB_HOST: db
+      DB_PORT: 3306
+      DB_NAME: ${DB_NAME:?DB_NAME is required}
+      DB_USER: ${DB_USER:?DB_USER is required}
+      DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
+      SESSION_SECRET: ${SESSION_SECRET:?SESSION_SECRET is required}
+      SESSION_TTL_MINUTES: ${SESSION_TTL_MINUTES:?SESSION_TTL_MINUTES is required}
+      UPLOAD_DIR: /data/uploads
+      MAX_UPLOAD_BYTES: ${MAX_UPLOAD_BYTES:?MAX_UPLOAD_BYTES is required}
+      LOGIN_MAX_FAILURES: ${LOGIN_MAX_FAILURES:?LOGIN_MAX_FAILURES is required}
+      LOGIN_LOCK_SECONDS: ${LOGIN_LOCK_SECONDS:?LOGIN_LOCK_SECONDS is required}
+      SEED_TEACHER_A_PASSWORD: ${SEED_TEACHER_A_PASSWORD:?SEED_TEACHER_A_PASSWORD is required}
+      SEED_STUDENT_A1_PASSWORD: ${SEED_STUDENT_A1_PASSWORD:?SEED_STUDENT_A1_PASSWORD is required}
+      SEED_STUDENT_B1_PASSWORD: ${SEED_STUDENT_B1_PASSWORD:?SEED_STUDENT_B1_PASSWORD is required}
+    volumes:
+      - uploads:/data/uploads
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8081/health >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    networks: [campus-internal]
+
+  web:
+    build:
+      context: ./frontend
+    restart: unless-stopped
+    ports:
+      - "${WEB_PORT:?WEB_PORT is required}:8080"
+    depends_on:
+      api:
+        condition: service_healthy
+    networks: [campus-internal]
+
+networks:
+  campus-internal:
+    driver: bridge
+
+volumes:
+  db-data:
+  uploads:
+
