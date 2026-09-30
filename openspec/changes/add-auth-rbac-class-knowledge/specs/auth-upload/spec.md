@@ -4,13 +4,18 @@
 
 ### Requirement: R1 Server-side authentication
 
-The system MUST authenticate username/password credentials using bcrypt, issue a fresh opaque server-side session on success, and expose the current identity through `/api/me`.
+The system MUST authenticate username/password credentials using bcrypt, issue a signed Bearer token backed by a revocable server-side session on success, and expose the current identity through `/api/me`. Protected APIs MUST reject requests that provide only an old session cookie.
 
-#### Scenario: Successful login rotates the session
+#### Scenario: Successful login issues a revocable token
 
-- **WHEN** a valid user logs in while presenting any prior session cookie
-- **THEN** the server invalidates the prior session, creates a new unpredictable session, and sets an `HttpOnly; SameSite=Lax` cookie
-- **AND** `/api/me` returns the current user, role and class from server-side data
+- **WHEN** a valid user logs in
+- **THEN** the server creates a new unpredictable session and returns a signed Bearer token without setting a session cookie
+- **AND** `/api/me` returns the current user, role and class from server-side data only when called with that valid token
+
+#### Scenario: Logout revokes the token
+
+- **WHEN** a logged-in user logs out using their Bearer token
+- **THEN** the server deletes that token's session and subsequent protected requests using it return 401
 
 #### Scenario: Credential failures are indistinguishable
 
@@ -131,11 +136,11 @@ The system MUST run as web, api and db Compose services, expose only web, persis
 
 ### Requirement: R9 Web behavior and safety
 
-The web app MUST contain login and material experiences, restore identity with `/api/me`, handle 401 by returning to login, gate upload presentation by server-provided role, and use authenticated detail/download APIs.
+The web app MUST contain login and material experiences, keep the Bearer token only in the current tab's `sessionStorage`, restore identity with `/api/me`, handle 401 by returning to login, gate upload presentation by server-provided role, and use authenticated detail/download APIs.
 
 #### Scenario: Browser session is restored safely
 
-- **WHEN** the page is refreshed with a valid or expired session
+- **WHEN** the page is refreshed with a valid or expired stored Bearer token
 - **THEN** the app decides the route from `/api/me`, never from a locally stored role
 
 #### Scenario: Markdown HTML is not executed
