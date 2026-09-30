@@ -59,26 +59,25 @@ func (a *Auth) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	oldCookie := ""
-	if cookie, err := r.Cookie(CookieName); err == nil {
-		oldCookie = cookie.Value
-	}
-	value, err := a.rotateSession(r.Context(), oldCookie, user)
+	token, err := a.createSession(r.Context(), user)
 	if err != nil {
 		httpx.Error(w, http.StatusInternalServerError, "服务暂时不可用")
 		return
 	}
 	a.limiter.Reset(key)
-	a.setCookie(w, value)
-	httpx.JSON(w, http.StatusOK, map[string]any{"user": user})
+	httpx.JSON(w, http.StatusOK, map[string]any{"user": user, "token": token, "token_type": "Bearer", "expires_in": int(a.ttl.Seconds())})
 }
 
 func (a *Auth) Logout(w http.ResponseWriter, r *http.Request) {
-	cookie, _ := r.Cookie(CookieName)
-	if cookie != nil {
-		_ = a.destroySession(r.Context(), cookie.Value)
+	claims, ok := a.bearerClaims(r)
+	if !ok {
+		httpx.Error(w, http.StatusUnauthorized, "需要登录")
+		return
 	}
-	a.clearCookie(w)
+	if err := a.destroySession(r.Context(), claims.ID); err != nil {
+		httpx.Error(w, http.StatusInternalServerError, "服务暂时不可用")
+		return
+	}
 	w.WriteHeader(http.StatusNoContent)
 }
 

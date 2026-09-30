@@ -6,13 +6,13 @@ CampusClaw 是面向中小学的教研智能体。本仓库包含登录、教师
 
 - 教师：查看、搜索、下载、上传和删除本班材料；删除预置材料后重启也不会恢复。
 - 学生：查看、搜索和下载本班材料；上传接口由服务端返回 403。
-- 班级：只取服务端会话中的 `class_id`。列表强制按班过滤；详情和文件先取行再核对归属。
+- 班级：只取 Token 对应用户在服务端数据库中的 `class_id`。列表强制按班过滤；详情和文件先取行再核对归属。
 - 跨班：与不存在资源返回完全相同的 404，避免泄露资源是否存在。
-- 知识库：MySQL 保留原文与切片；Qdrant 只保存向量和标识。检索及问答都由会话班级限定，结果可返回材料、切片序号与字符区间。
+- 知识库：MySQL 保留原文与切片；Qdrant 只保存向量和标识。检索及问答都由 Token 对应的班级限定，结果可返回材料、切片序号与字符区间。
 
 ## 不做的内容
 
-本版本不包含流式长对话、作业和成绩、超级管理员、JWT/OAuth/SSO、注册改密、PDF/Word/图片解析、在线编辑、Kubernetes、CI、公网域名、HTTPS 或多副本高可用。
+本版本不包含流式长对话、作业和成绩、超级管理员、OAuth/SSO、注册改密、PDF/Word/图片解析、在线编辑、Kubernetes、CI、公网域名、HTTPS 或多副本高可用。
 
 这是单实例 Compose 版本。登录失败限流保存在 API 进程内；在引入共享限流器和相应规约之前不要横向扩容 API。
 
@@ -40,6 +40,16 @@ docker compose ps
 
 口令是你在 `.env` 中填写的值；应用启动时只把 bcrypt 哈希写入数据库。
 
+账号密码登录成功后，`POST /api/login` 返回 `token`、`token_type: "Bearer"` 和 `expires_in`，不设置会话 Cookie。网页会把 Token 保存到当前标签的 `sessionStorage`，后续材料、知识检索、上传、下载等请求都发送 `Authorization: Bearer <token>`，并禁用请求携带 Cookie。也可以在登录页选择「Token 登录」，粘贴本应用签发且尚未过期的 Token；服务端会先通过 `/api/me` 校验身份。Token 不包含角色和班级授权信息，服务端仍以数据库中的当前用户信息为准。
+
+脚本或 API 客户端可在登录响应中获取 `token`，然后按下例访问受保护接口（请替换占位符，不要把真实 Token 提交到仓库）：
+
+```sh
+curl -H 'Authorization: Bearer <token>' http://localhost:8080/api/materials
+```
+
+Token 使用 `SESSION_SECRET` 签名，有效期由 `SESSION_TTL_MINUTES` 决定。退出登录会撤销对应数据库会话，因此同一 Token 随即失效。受保护接口只接受 Bearer Token；旧版 Cookie 不再能登录。
+
 | 账号 | 角色 | 班级 | 权限 |
 | --- | --- | --- | --- |
 | `teacher_a` | 教师 | A 班 | 上传、查看、搜索、下载 |
@@ -66,7 +76,7 @@ docker compose ps
 
 ```sh
 cd backend && go test ./...
-cd ../frontend && npm ci && npm run build
+cd ../frontend && npm ci && npm test && npm run build
 cd .. && openspec validate add-auth-rbac-class-knowledge --strict
 openspec validate add-class-scoped-knowledge-retrieval --strict
 ```
@@ -77,7 +87,7 @@ Compose 启动后运行关键行为验收：
 sh scripts/verify.sh
 ```
 
-原有脚本验证公开 health、未登录 401、教师上传 201、学生上传 403、跨班 404，并比较跨班与不存在资源的响应体完全一致。检索的本地集成验收可使用 `scripts/mock_gateway.py`（仅测试，确定性向量和回答）及 `scripts/verify_knowledge.py`。后者需要 `BASE_URL`、三个 `TEST_*_PASSWORD` 和可选 `MOCK_GATEWAY_STATS` 环境变量；它会上传测试材料并重建索引。模拟网关只验证链路、班级隔离与失败路径，不能衡量真实模型的语义质量。
+脚本验证公开 health、未登录及旧 Cookie 401、登录响应不设置 Cookie、Bearer 身份查询、篡改 Token 401、教师上传 201、学生上传 403、跨班 404、登出后 Token 401，并比较跨班与不存在资源的响应体完全一致。检索的本地集成验收可使用 `scripts/mock_gateway.py`（仅测试，确定性向量和回答）及 `scripts/verify_knowledge.py`。后者需要 `BASE_URL`、三个 `TEST_*_PASSWORD` 和可选 `MOCK_GATEWAY_STATS` 环境变量；它会上传测试材料并重建索引。模拟网关只验证链路、班级隔离与失败路径，不能衡量真实模型的语义质量。
 
 可在 API 容器内执行 `go test ./...`、`go vet ./...`，并在前端目录运行 `npm run build`。完整 Compose 验收应在填入真实、获准使用的网关配置后执行；本仓库不附带网关密钥。
 
@@ -106,8 +116,8 @@ docker compose down -v
 
 ## 安全边界
 
-- Cookie 是带签名的不透明随机会话标识，使用 `HttpOnly` 与 `SameSite=Lax`；角色和班级不写入 `localStorage`。
-- 登录成功换发会话，登出删除服务端会话行。用户名不存在、密码错误和锁定期使用同一失败响应。
+- Bearer Token 是 HMAC-SHA256 签名的 JWT，并与可撤销的服务端会话关联。网页只在当前标签的 `sessionStorage` 保存 Token，不在浏览器存储角色或班级。
+- 登录成功创建 Token 对应的服务端会话，登出删除该会话行。用户名不存在、密码错误和锁定期使用同一失败响应。
 - 文件名只用于展示；磁盘存储名由服务端随机生成。仅允许非空 UTF-8 的 `.txt` / `.md`，大小上限来自环境变量。
 - 材料、知识库行与待索引任务处于同一事务；失败时回滚数据库并删除已写文件。向量索引异步重试，不影响原文保存。
 - 关键字 SQL 与 Qdrant 查询都用会话班级过滤；向量命中再回 MySQL 按班级、版本、状态和原文哈希核对。Qdrant 不保存切片正文。

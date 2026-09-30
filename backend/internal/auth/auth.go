@@ -8,15 +8,24 @@ import (
 	"database/sql"
 	"encoding/base64"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
 	"campusclaw/internal/httpx"
 )
 
-const CookieName = "campus_session"
+const jwtHeader = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9"
+
+type tokenClaims struct {
+	Subject string `json:"sub"`
+	ID      string `json:"jti"`
+	Issued  int64  `json:"iat"`
+	Expires int64  `json:"exp"`
+}
 
 type User struct {
 	ID        uint64 `json:"id"`
@@ -32,7 +41,6 @@ type Auth struct {
 	db        *sql.DB
 	secret    []byte
 	ttl       time.Duration
-	secure    bool
 	limiter   *Limiter
 	dummyHash []byte
 }
@@ -69,90 +77,90 @@ func WithUser(ctx context.Context, user User) context.Context {
 }
 
 func (a *Auth) Authenticate(ctx context.Context, r *http.Request) (User, error) {
-	cookie, err := r.Cookie(CookieName)
-	if err != nil {
-		return User{}, err
-	}
-	rawToken, ok := a.verifyCookie(cookie.Value)
+	claims, ok := a.bearerClaims(r)
 	if !ok {
-		return User{}, errors.New("invalid session signature")
+		return User{}, errors.New("invalid bearer token")
 	}
 	var user User
-	err = a.db.QueryRowContext(ctx, `SELECT u.id, u.username, u.role, u.class_id, c.name
+	err := a.db.QueryRowContext(ctx, `SELECT u.id, u.username, u.role, u.class_id, c.name
 		FROM sessions s JOIN users u ON u.id=s.user_id JOIN classes c ON c.id=u.class_id
-		WHERE s.token_hash=? AND s.expires_at>UTC_TIMESTAMP(6)`, hashToken(rawToken)).
+		WHERE s.token_hash=? AND s.expires_at>UTC_TIMESTAMP(6)`, hashToken(claims.ID)).
 		Scan(&user.ID, &user.Username, &user.Role, &user.ClassID, &user.ClassName)
 	if err != nil {
 		return User{}, err
 	}
+	if claims.Subject != strconv.FormatUint(user.ID, 10) {
+		return User{}, errors.New("token subject mismatch")
+	}
 	return user, nil
 }
 
-func (a *Auth) rotateSession(ctx context.Context, oldCookieValue string, user User) (string, error) {
+func (a *Auth) createSession(ctx context.Context, user User) (string, error) {
 	rawToken, err := randomToken()
 	if err != nil {
 		return "", err
 	}
-	tx, err := a.db.BeginTx(ctx, nil)
-	if err != nil {
-		return "", err
-	}
-	defer tx.Rollback()
-	if oldToken, ok := a.verifyCookie(oldCookieValue); ok {
-		if _, err := tx.ExecContext(ctx, `DELETE FROM sessions WHERE token_hash=?`, hashToken(oldToken)); err != nil {
-			return "", err
-		}
-	}
-	_, err = tx.ExecContext(ctx, `INSERT INTO sessions (token_hash, user_id, role, class_id, expires_at)
+	_, err = a.db.ExecContext(ctx, `INSERT INTO sessions (token_hash, user_id, role, class_id, expires_at)
 		VALUES (?, ?, ?, ?, ?)`, hashToken(rawToken), user.ID, user.Role, user.ClassID, time.Now().UTC().Add(a.ttl))
 	if err != nil {
 		return "", err
 	}
-	if err := tx.Commit(); err != nil {
-		return "", err
-	}
-	return a.signCookie(rawToken), nil
+	return a.signBearer(rawToken, user), nil
 }
 
-func (a *Auth) destroySession(ctx context.Context, cookieValue string) error {
-	rawToken, ok := a.verifyCookie(cookieValue)
-	if !ok {
-		return nil
-	}
+func (a *Auth) destroySession(ctx context.Context, rawToken string) error {
 	_, err := a.db.ExecContext(ctx, `DELETE FROM sessions WHERE token_hash=?`, hashToken(rawToken))
 	return err
 }
 
-func (a *Auth) setCookie(w http.ResponseWriter, value string) {
-	http.SetCookie(w, &http.Cookie{
-		Name: CookieName, Value: value, Path: "/", HttpOnly: true,
-		SameSite: http.SameSiteLaxMode, Secure: a.secure, MaxAge: int(a.ttl.Seconds()),
+func (a *Auth) signBearer(rawToken string, user User) string {
+	now := time.Now().UTC()
+	claims, _ := json.Marshal(tokenClaims{
+		Subject: strconv.FormatUint(user.ID, 10), ID: rawToken,
+		Issued: now.Unix(), Expires: now.Add(a.ttl).Unix(),
 	})
-}
-
-func (a *Auth) clearCookie(w http.ResponseWriter) {
-	http.SetCookie(w, &http.Cookie{
-		Name: CookieName, Value: "", Path: "/", HttpOnly: true,
-		SameSite: http.SameSiteLaxMode, Secure: a.secure, MaxAge: -1,
-	})
-}
-
-func (a *Auth) signCookie(rawToken string) string {
+	data := jwtHeader + "." + base64.RawURLEncoding.EncodeToString(claims)
 	mac := hmac.New(sha256.New, a.secret)
-	_, _ = mac.Write([]byte(rawToken))
-	signature := base64.RawURLEncoding.EncodeToString(mac.Sum(nil))
-	return rawToken + "." + signature
+	_, _ = mac.Write([]byte(data))
+	return data + "." + base64.RawURLEncoding.EncodeToString(mac.Sum(nil))
 }
 
-func (a *Auth) verifyCookie(value string) (string, bool) {
+func (a *Auth) verifyBearer(value string) (tokenClaims, bool) {
 	parts := strings.Split(value, ".")
-	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
-		return "", false
+	if len(value) > 4096 || len(parts) != 3 || parts[0] != jwtHeader {
+		return tokenClaims{}, false
+	}
+	signature, err := base64.RawURLEncoding.DecodeString(parts[2])
+	if err != nil {
+		return tokenClaims{}, false
 	}
 	mac := hmac.New(sha256.New, a.secret)
-	_, _ = mac.Write([]byte(parts[0]))
-	expected := base64.RawURLEncoding.EncodeToString(mac.Sum(nil))
-	return parts[0], hmac.Equal([]byte(expected), []byte(parts[1]))
+	_, _ = mac.Write([]byte(parts[0] + "." + parts[1]))
+	if !hmac.Equal(signature, mac.Sum(nil)) {
+		return tokenClaims{}, false
+	}
+	payload, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil {
+		return tokenClaims{}, false
+	}
+	var claims tokenClaims
+	if json.Unmarshal(payload, &claims) != nil || claims.ID == "" || claims.Subject == "" ||
+		claims.Issued > time.Now().Unix() || claims.Expires <= time.Now().Unix() || claims.Expires <= claims.Issued {
+		return tokenClaims{}, false
+	}
+	return claims, true
+}
+
+func (a *Auth) bearerClaims(r *http.Request) (tokenClaims, bool) {
+	values := r.Header.Values("Authorization")
+	if len(values) != 1 {
+		return tokenClaims{}, false
+	}
+	fields := strings.Fields(values[0])
+	if len(fields) != 2 || !strings.EqualFold(fields[0], "Bearer") {
+		return tokenClaims{}, false
+	}
+	return a.verifyBearer(fields[1])
 }
 
 func randomToken() (string, error) {
