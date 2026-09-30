@@ -1,10 +1,10 @@
 # CampusClaw · 可追溯知识库检索
 
-CampusClaw 是面向中小学的教研智能体。本仓库包含登录、教师/学生权限、班级隔离、`.txt` / `.md` 材料入库，以及本班知识切片的关键字、向量、混合检索和带出处的简短问答。
+CampusClaw 是面向中小学的教研智能体。本仓库提供账号或 Token 登录、教师/学生权限、班级隔离、`.txt` / `.md` 材料管理，以及本班知识切片的关键字、向量、混合检索和带出处的简短问答。前端为 React，API 为 Go；MySQL 保存材料与切片，Qdrant 保存向量。
 
 ## 范围
 
-- 教师：查看、搜索、下载、上传和删除本班材料；删除预置材料后重启也不会恢复。
+- 教师：查看、搜索、下载、上传和删除本班材料，并可重新建立材料索引；删除预置材料后重启也不会恢复。
 - 学生：查看、搜索和下载本班材料；上传接口由服务端返回 403。
 - 班级：只取 Token 对应用户在服务端数据库中的 `class_id`。列表强制按班过滤；详情和文件先取行再核对归属。
 - 跨班：与不存在资源返回完全相同的 404，避免泄露资源是否存在。
@@ -34,7 +34,7 @@ docker compose ps
 
 模型网关使用 OpenAI 兼容 `/embeddings` 与 `/chat/completions` 接口。`GATEWAY_BASE_URL` 填到 `/v1`，`GATEWAY_API_KEY` 仅由 Go API 持有。`EMBEDDING_MODEL` 和 `EMBEDDING_DIMENSION` 必须与网关实际输出一致；更换模型或维度后需重建向量索引。**切片正文会发送到所配置的嵌入网关；仅在问答命中本班切片时，这些切片才会发送到对话网关。**部署前应确认网关的数据处理边界。示例文件只含占位值，不是可用凭据。
 
-课程网关当前使用 `EMBEDDING_MODEL=course-embedding`、`EMBEDDING_DIMENSION=2048` 和 `CHAT_MODEL=course-chat`；这些值仍从 `.env` 读取。网页分别提供“知识检索”和“知识问答”入口。检索中的“语义”模式调用嵌入模型，没有单独的浏览器 embedding 接口。
+模型名与嵌入维度由 `.env` 决定，仓库中的示例值只是占位符。网页分别提供“知识检索”和“知识问答”入口；检索中的“语义”模式调用嵌入模型，没有单独的浏览器 embedding 接口。
 
 ## 预置账号
 
@@ -52,7 +52,7 @@ Token 使用 `SESSION_SECRET` 签名，有效期由 `SESSION_TTL_MINUTES` 决定
 
 | 账号 | 角色 | 班级 | 权限 |
 | --- | --- | --- | --- |
-| `teacher_a` | 教师 | A 班 | 上传、查看、搜索、下载 |
+| `teacher_a` | 教师 | A 班 | 上传、查看、搜索、下载、删除、重建索引 |
 | `student_a1` | 学生 | A 班 | 查看、搜索、下载 |
 | `student_b1` | 学生 | B 班 | 查看、搜索、下载 |
 
@@ -60,19 +60,19 @@ Token 使用 `SESSION_SECRET` 签名，有效期由 `SESSION_TTL_MINUTES` 决定
 
 ## 知识检索与溯源
 
-`GET /api/knowledge/search?q=问题&mode=hybrid&limit=10` 需要登录，`mode` 可为 `keyword`、`vector` 或 `hybrid`（默认）。关键字模式只查 MySQL 的二元 ngram 全文索引；向量模式调用嵌入网关和 Qdrant，并剔除余弦相似度低于 0.35 的候选；混合模式以 RRF `k=60` 融合两路通过阈值的名次。结果包含 MySQL 切片摘录、材料 ID/标题、原文件名、切片序号、字符区间及偏移基准。请求中的 `class_id` 不参与授权。
+`GET /api/knowledge/search?q=问题&mode=hybrid&limit=10` 需要 Bearer Token。`q` 为 1–200 个字符，`limit` 默认为 10、可设为 1–20；`mode` 可为 `keyword`、`vector` 或 `hybrid`（默认）。关键字模式只查 MySQL 的二元 ngram 全文索引；向量模式调用嵌入网关和 Qdrant，并剔除余弦相似度低于 0.35 的候选；混合模式以 RRF `k=60` 融合两路通过阈值的名次。结果包含 MySQL 切片摘录、材料 ID/标题、原文件名、切片序号、字符区间及偏移基准。请求中的 `class_id` 不参与授权。
 
-`POST /api/ask` 接收 `{"question":"..."}`，以本班混合检索的前四条切片作为依据。无命中时返回 `资料中未找到相关内容`、空 `citations`，不调用对话网关；有命中时返回带 `[1]` 等引用的简短回答。两接口均要求会话，客户端不能提供 system 指令覆盖服务端提示。
+`POST /api/ask` 接收 `{"question":"..."}`，问题同样限 1–200 个字符，以本班混合检索的前四条切片作为依据。可选 `history` 最多六条；只接受 `user`、`assistant` 角色，每条最多 1000 字符。无命中时返回 `资料中未找到相关内容`、空 `citations`，不调用对话网关；有命中时返回带 `[1]` 等引用的简短回答。两接口均要求 Bearer Token，客户端不能提供 system 指令覆盖服务端提示。
 
 教师可在材料列表或详情中确认删除本班材料。`DELETE /api/materials/{id}` 成功返回 204；学生返回 403，跨班与不存在材料返回同形 404，索引处理中返回 409 以便稍后重试。删除会清理原文、私有文件、切片、索引任务和向量；预置材料的删除记录会阻止服务重启时重新播种。此操作不可撤销。
 
-教师上传可在表单中选择切分策略：`auto` 为最多 800 个 Unicode 字符、重叠 80 字；`custom` 支持 100–2000 字、0–50% 重叠、换行/空行/句号分隔和可选预处理；`hierarchy` 按 Markdown 一级至三级标题分章。原文始终保留。预处理过的切片偏移相对于处理后文本，界面会明确标注。教师也可在材料详情中按新策略请求 `POST /api/materials/{id}/reindex`；跨班材料与未知 ID 同形 404。
+教师上传可在表单中选择切分策略：`auto` 为最多 800 个 Unicode 字符、重叠 80 字；`custom` 支持 100–2000 字、0–50% 重叠、换行/空行/句号分隔和可选预处理；`hierarchy` 按 Markdown 一级至三级标题分章，较长章节仍会继续切分。原文始终保留。预处理过的切片偏移相对于处理后文本，界面会明确标注。教师也可在材料详情中按新策略请求 `POST /api/materials/{id}/reindex`，成功返回 202，表示索引任务已排队；跨班材料与未知 ID 同形 404。
 
 检索响应的 `index_state` 为 `building`、`degraded` 或 `ready`。检索正常但无依据时是 HTTP 200、空 `hits` 和固定文案；Qdrant 或嵌入网关故障时，向量/混合模式返回 503，关键字模式仍可读取已就绪切片。现有 `/api/materials?q=...` 始终保留材料列表搜索语义。
 
 ## 验收
 
-先执行静态构建与规约校验：
+本地验证需要 Go 1.22、Node.js/npm 和 OpenSpec CLI。先执行测试、前端构建与规约校验：
 
 ```sh
 cd backend && go test ./...
@@ -87,9 +87,11 @@ Compose 启动后运行关键行为验收：
 sh scripts/verify.sh
 ```
 
-脚本验证公开 health、未登录及旧 Cookie 401、登录响应不设置 Cookie、Bearer 身份查询、篡改 Token 401、教师上传 201、学生上传 403、跨班 404、登出后 Token 401，并比较跨班与不存在资源的响应体完全一致。检索的本地集成验收可使用 `scripts/mock_gateway.py`（仅测试，确定性向量和回答）及 `scripts/verify_knowledge.py`。后者需要 `BASE_URL`、三个 `TEST_*_PASSWORD` 和可选 `MOCK_GATEWAY_STATS` 环境变量；它会上传测试材料并重建索引。模拟网关只验证链路、班级隔离与失败路径，不能衡量真实模型的语义质量。
+脚本验证公开 health、未登录及旧 Cookie 401、登录响应不设置 Cookie、Bearer 身份查询、篡改 Token 401、教师上传 201、学生上传 403、跨班 404、登出后 Token 401，并比较跨班与不存在资源的响应体完全一致。脚本会向 A 班上传一份验收材料，持久卷中会保留该数据。
 
-可在 API 容器内执行 `go test ./...`、`go vet ./...`，并在前端目录运行 `npm run build`。完整 Compose 验收应在填入真实、获准使用的网关配置后执行；本仓库不附带网关密钥。
+检索的本地集成验收可使用 `scripts/mock_gateway.py`（仅测试，提供确定性向量和回答）及 `scripts/verify_knowledge.py`。将 Compose 的 `GATEWAY_BASE_URL` 指向可从 API 容器访问的模拟网关 `/v1`，并将 `EMBEDDING_DIMENSION` 设为模拟网关默认的 `8`（或与 `MOCK_EMBEDDING_DIMENSION` 一致）。运行验收脚本时设置 `BASE_URL`、`TEST_TEACHER_PASSWORD`、`TEST_STUDENT_A_PASSWORD`、`TEST_STUDENT_B_PASSWORD`；如模拟网关统计地址与默认的 `http://127.0.0.1:18765/stats` 不同，还需设置 `MOCK_GATEWAY_STATS`。脚本会上传测试材料并重建索引。模拟网关只验证链路、班级隔离与失败路径，不能衡量真实模型的语义质量。
+
+完整 Compose 验收应在填入真实、获准使用的网关配置后执行；本仓库不附带网关密钥。
 
 ## 持久化与重置
 
