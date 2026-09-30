@@ -26,6 +26,12 @@ Cookie 只保存带 HMAC 签名的不透明随机会话标识，设置 `HttpOnly
 
 登录失败限流在进程内，数据库会话可立即撤销。当前发布形态固定为单 API 实例；多副本需要共享限流器与额外运维设计，留待后续变更。
 
+### D6：教师删除材料与预置材料墓碑
+
+`DELETE /api/materials/{id}` 仅允许教师执行，班级来自会话；跨班与未知 ID 同形 404，学生返回 403。删除前按材料 ID 加锁并拒绝正在处理索引的材料，避免后台 worker 在删除后重新写入向量。MySQL 事务删除材料行，外键级联删除知识正文、切片和索引任务；Qdrant 按班级与知识条目 ID 删除派生向量。文件先在私有上传卷中重命名隔离，事务失败则恢复，事务提交后移除。前端提供明确确认和删除反馈。
+
+预置材料删除时，在同一事务写入按预置存储名唯一的 `deleted_seed_materials` 墓碑。播种过程先检查墓碑，故重启不会恢复被教师删除的预置材料。墓碑只记录预置标识，不保留已删除的正文。
+
 ## Data model
 
 - `classes(id, name)`
@@ -33,6 +39,7 @@ Cookie 只保存带 HMAC 签名的不透明随机会话标识，设置 `HttpOnly
 - `sessions(token_hash, user_id, role, class_id, expires_at)`
 - `materials(id, class_id, uploader_id, title, original_name, stored_name, media_type, size_bytes, source, created_at)`
 - `knowledge_entries(id, material_id, class_id, content, source, created_at)`
+- `deleted_seed_materials(stored_name, deleted_at)`
 
 `materials.class_id` 与 `knowledge_entries.class_id` 均为非空外键并有索引。
 
@@ -47,9 +54,9 @@ Cookie 只保存带 HMAC 签名的不透明随机会话标识，设置 `HttpOnly
 | GET | `/api/materials/{id}` | 会话+班级；跨班/不存在同形 404 |
 | GET | `/api/materials/{id}/file` | 会话+班级；鉴权下载 |
 | POST | `/api/materials` | 会话+teacher；成功 201，student 403 |
+| DELETE | `/api/materials/{id}` | 会话+teacher+班级；成功 204，学生 403，跨班/未知 404，索引处理中 409 |
 | GET | `/health` | 公开；仅进程存活语义 |
 
 ## Configuration and startup
 
 所有数据库凭据、会话密钥、上传限制、TTL、限流阈值和种子口令只来自环境。必填项缺失或格式非法时进程退出。API 在启动时重试等待 MySQL 可连接，再迁移并幂等播种。
-

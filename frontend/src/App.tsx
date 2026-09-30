@@ -167,7 +167,8 @@ function Library({
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<Material | null>(null);
   const [selectedCitation, setSelectedCitation] = useState<KnowledgeHit | null>(null);
-  const [section, setSection] = useState<"materials" | "knowledge">("materials");
+  const [section, setSection] = useState<"materials" | "knowledge" | "ask">("materials");
+  const [deletingId, setDeletingId] = useState<number | null>(null);
   const [view, setView] = useState<ViewMode>(() =>
     localStorage.getItem("campus-view") === "grid" ? "grid" : "list"
   );
@@ -241,6 +242,23 @@ function Library({
     await openMaterial({ id: hit.material_id } as Material, hit);
   }
 
+  async function deleteMaterial(item: Material) {
+    if (!window.confirm(`确定永久删除“${item.title}”吗？相关知识切片也会移除。`)) return;
+    setDeletingId(item.id);
+    try {
+      await api.deleteMaterial(item.id);
+      setSelected(null);
+      setSelectedCitation(null);
+      setSection("materials");
+      await loadMaterials(query);
+      toast("材料及其知识索引已删除", "success");
+    } catch (reason) {
+      handleError(reason);
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
   async function logout() {
     try {
       await api.logout();
@@ -252,6 +270,7 @@ function Library({
   const commands = useMemo(() => [
     { label: "搜索本班材料", hint: "/", run: () => { setSection("materials"); window.setTimeout(() => searchRef.current?.focus(), 0); } },
     { label: "知识库检索", hint: "检索", run: () => setSection("knowledge") },
+    { label: "知识问答", hint: "AI", run: () => setSection("ask") },
     ...(user.role === "teacher" ? [{ label: "上传教研材料", hint: "教师", run: () => setUploadOpen(true) }] : []),
     { label: theme === "light" ? "切换到深色主题" : "切换到浅色主题", hint: "主题", run: () => setTheme(theme === "light" ? "dark" : "light") },
     { label: view === "list" ? "切换到网格视图" : "切换到列表视图", hint: "视图", run: () => setView(view === "list" ? "grid" : "list") },
@@ -268,6 +287,7 @@ function Library({
         <nav aria-label="主导航">
           <button className={`nav-item ${section === "materials" ? "active" : ""}`} onClick={() => setSection("materials")}><span>册</span>材料库</button>
           <button className={`nav-item ${section === "knowledge" ? "active" : ""}`} onClick={() => setSection("knowledge")}><span>⌕</span>知识检索</button>
+          <button className={`nav-item ${section === "ask" ? "active" : ""}`} onClick={() => setSection("ask")}><span>问</span>知识问答</button>
           <button className="nav-item" onClick={() => setCommandsOpen(true)}><span>⌘</span>快捷命令</button>
         </nav>
         <div className="rail-note">
@@ -286,9 +306,9 @@ function Library({
       <main className="workspace">
         <header className="workspace-header">
           <div>
-            <p className="location">{user.class_name} / {section === "materials" ? "材料库" : "知识检索"}</p>
-            <h1>{section === "materials" ? "教研材料" : "可追溯检索"}</h1>
-            <p className="header-note">{section === "materials" ? `共 ${materials.length} 份可见材料` : "检索本班切片，核对每条依据"} · 权限来自服务端会话</p>
+            <p className="location">{user.class_name} / {section === "materials" ? "材料库" : section === "ask" ? "知识问答" : "知识检索"}</p>
+            <h1>{section === "materials" ? "教研材料" : section === "ask" ? "依据资料问答" : "可追溯检索"}</h1>
+            <p className="header-note">{section === "materials" ? `共 ${materials.length} 份可见材料` : section === "ask" ? "提问后核对回答所用的本班材料" : "检索本班切片，核对每条依据"} · 权限来自服务端会话</p>
           </div>
           <div className="header-actions">
             <button className="icon-button" onClick={() => setTheme(theme === "light" ? "dark" : "light")} aria-label="切换主题">
@@ -304,6 +324,7 @@ function Library({
         <div className="mobile-sections" role="group" aria-label="工作区切换">
           <button className={section === "materials" ? "selected" : ""} onClick={() => setSection("materials")}>材料库</button>
           <button className={section === "knowledge" ? "selected" : ""} onClick={() => setSection("knowledge")}>知识检索</button>
+          <button className={section === "ask" ? "selected" : ""} onClick={() => setSection("ask")}>知识问答</button>
         </div>
 
         {section === "materials" ? <><section className="toolbar" aria-label="材料筛选与视图">
@@ -346,12 +367,13 @@ function Library({
                 </span>
               </button>
               <button className="quiet-action" onClick={() => downloadMaterial(item).then(() => toast("下载已开始", "success")).catch(handleError)}>下载</button>
+              {user.role === "teacher" && <button className="quiet-action danger-action" onClick={() => deleteMaterial(item)} disabled={deletingId === item.id}>{deletingId === item.id ? "删除中…" : "删除"}</button>}
             </article>
           ))}
-        </section></> : <KnowledgePanel onOpen={openCitation} onError={handleError} />}
+        </section></> : <KnowledgePanel kind={section === "ask" ? "ask" : "search"} onOpen={openCitation} onError={handleError} />}
       </main>
 
-      {selected && <DetailDrawer item={selected} citation={selectedCitation} onClose={() => { setSelected(null); setSelectedCitation(null); }} onDownload={() => downloadMaterial(selected).then(() => toast("下载已开始", "success")).catch(handleError)} onReindex={user.role === "teacher" ? async (strategy) => { await api.reindex(selected.id, strategy); toast("索引重建已排队", "success"); } : undefined} />}
+      {selected && <DetailDrawer item={selected} citation={selectedCitation} onClose={() => { setSelected(null); setSelectedCitation(null); }} onDownload={() => downloadMaterial(selected).then(() => toast("下载已开始", "success")).catch(handleError)} onReindex={user.role === "teacher" ? async (strategy) => { await api.reindex(selected.id, strategy); toast("索引重建已排队", "success"); } : undefined} onDelete={user.role === "teacher" ? () => deleteMaterial(selected) : undefined} />}
       {uploadOpen && user.role === "teacher" && <UploadDialog onClose={() => setUploadOpen(false)} onUploaded={() => { setUploadOpen(false); loadMaterials(query); toast("材料已入库，本班现在可以查看", "success"); }} onError={handleError} />}
       {commandsOpen && <CommandPalette commands={commands} onClose={() => setCommandsOpen(false)} />}
       <div className="toast-region" aria-live="polite">
@@ -361,7 +383,7 @@ function Library({
   );
 }
 
-function KnowledgePanel({ onOpen, onError }: { onOpen: (hit: KnowledgeHit) => void; onError: (reason: unknown) => void }) {
+function KnowledgePanel({ kind, onOpen, onError }: { kind: "search" | "ask"; onOpen: (hit: KnowledgeHit) => void; onError: (reason: unknown) => void }) {
   const [query, setQuery] = useState("");
   const [mode, setMode] = useState<SearchMode>("hybrid");
   const [hits, setHits] = useState<KnowledgeHit[]>([]);
@@ -376,6 +398,12 @@ function KnowledgePanel({ onOpen, onError }: { onOpen: (hit: KnowledgeHit) => vo
     askController.current?.abort();
     setAsking(false);
     setAnswer(null);
+    if (kind === "ask") {
+      setHits([]);
+      setLoading(false);
+      setError("");
+      return;
+    }
     if (!query.trim() || Array.from(query.trim()).length > 200) {
       setHits([]);
       setLoading(false);
@@ -401,7 +429,7 @@ function KnowledgePanel({ onOpen, onError }: { onOpen: (hit: KnowledgeHit) => vo
         .finally(() => { if (!controller.signal.aborted) setLoading(false); });
     }, 250);
     return () => { window.clearTimeout(timer); controller.abort(); };
-  }, [query, mode, onError]);
+  }, [query, mode, onError, kind]);
 
   async function ask() {
     askController.current?.abort();
@@ -420,35 +448,35 @@ function KnowledgePanel({ onOpen, onError }: { onOpen: (hit: KnowledgeHit) => vo
   }
 
   const valid = query.trim().length > 0 && Array.from(query.trim()).length <= 200;
-  return <section className="knowledge-panel" aria-label="本班知识检索">
+  return <section className="knowledge-panel" aria-label={kind === "ask" ? "本班知识问答" : "本班知识检索"}>
     <div className="knowledge-search">
-      <label htmlFor="knowledge-query">检索本班知识片段</label>
+      <label htmlFor="knowledge-query">{kind === "ask" ? "向本班资料提问" : "检索本班知识片段"}</label>
       <div className="knowledge-query-row">
-        <input id="knowledge-query" value={query} onChange={(event) => setQuery(event.target.value)} maxLength={200} placeholder="输入原词或用自然语言提问" />
-        <button className="primary" onClick={ask} disabled={!valid || asking}>{asking ? "回答中…" : "依据资料回答"}</button>
+        <input id="knowledge-query" value={query} onChange={(event) => setQuery(event.target.value)} maxLength={200} placeholder={kind === "ask" ? "输入想了解的问题" : "输入原词或自然语言"} />
+        {kind === "ask" && <button className="primary" onClick={ask} disabled={!valid || asking}>{asking ? "回答中…" : "开始问答"}</button>}
       </div>
-      <div className="mode-switch" role="group" aria-label="检索模式">
+      {kind === "search" && <div className="mode-switch" role="group" aria-label="检索模式">
         {(["keyword", "vector", "hybrid"] as SearchMode[]).map((value) => <button key={value} className={mode === value ? "selected" : ""} onClick={() => setMode(value)} aria-pressed={mode === value}>{value === "keyword" ? "关键字" : value === "vector" ? "语义" : "混合"}</button>)}
-      </div>
-      <p className="search-explainer">关键字匹配原文；语义查找相近表述；混合融合两路排序。所有结果仅来自当前班级。</p>
+      </div>}
+      <p className="search-explainer">{kind === "ask" ? "回答只依据本班检索到的材料，并附上可打开的来源。" : "关键字匹配原文；语义通过向量查找相近表述；混合融合两路排序。所有结果仅来自当前班级。"}</p>
     </div>
     {indexState === "building" && <p className="index-notice">本班材料正在建立索引，结果可能暂时不完整。</p>}
     {indexState === "degraded" && <p className="index-notice warning">部分材料索引失败；可联系教师重建。</p>}
     {answer && <article className="answer-card"><p className="eyebrow">依据资料回答</p><p>{answer.text}</p>{answer.citations.length > 0 && <div className="answer-citations">{answer.citations.map((hit, index) => <button key={hit.chunk_id} onClick={() => onOpen(hit)}>[{index + 1}] {hit.title} · 切片 {hit.chunk_index}</button>)}</div>}</article>}
     {error && <p className="form-error" role="alert">{error}</p>}
-    {loading ? <p className="knowledge-state">正在检索本班资料…</p> : valid && !error && hits.length === 0 ? <p className="knowledge-state">资料中未找到相关内容</p> : null}
-    <div className="knowledge-results" aria-live="polite">
+    {kind === "search" && (loading ? <p className="knowledge-state">正在检索本班资料…</p> : valid && !error && hits.length === 0 ? <p className="knowledge-state">资料中未找到相关内容</p> : null)}
+    {kind === "search" && <div className="knowledge-results" aria-live="polite">
       {hits.map((hit) => <article className="knowledge-hit" key={hit.chunk_id}>
         <div className="hit-meta"><span>#{hit.rank} · 切片 {hit.chunk_index}</span><span>{hit.offset_basis === "original" ? "原文" : "预处理文本"}字符 {hit.start_offset}–{hit.end_offset}</span></div>
         <h2>{hit.title}</h2><p className="hit-file">{hit.original_name}</p>
         <blockquote>{hit.excerpt}</blockquote>
         <button className="secondary" onClick={() => onOpen(hit)}>打开来源</button>
       </article>)}
-    </div>
+    </div>}
   </section>;
 }
 
-function DetailDrawer({ item, citation, onClose, onDownload, onReindex }: { item: Material; citation: KnowledgeHit | null; onClose: () => void; onDownload: () => void; onReindex?: (strategy: ChunkStrategy) => Promise<void> }) {
+function DetailDrawer({ item, citation, onClose, onDownload, onReindex, onDelete }: { item: Material; citation: KnowledgeHit | null; onClose: () => void; onDownload: () => void; onReindex?: (strategy: ChunkStrategy) => Promise<void>; onDelete?: () => Promise<void> }) {
   const isMarkdown = item.original_name.toLowerCase().endsWith(".md");
   const [strategy, setStrategy] = useState<ChunkStrategy>({ mode: "auto" });
   const [reindexBusy, setReindexBusy] = useState(false);
@@ -481,7 +509,7 @@ function DetailDrawer({ item, citation, onClose, onDownload, onReindex }: { item
           {citation?.offset_basis === "processed" && <blockquote className="processed-excerpt">{citation.excerpt}</blockquote>}
           {matchesCitation ? <pre>{characters.slice(0, citation!.start_offset).join("")}<mark>{citation!.excerpt}</mark>{characters.slice(citation!.end_offset).join("")}</pre> : isMarkdown ? <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown> : <pre>{content}</pre>}
         </article>
-        <footer className="detail-footer"><button className="primary" onClick={onDownload}>下载原文件</button>{onReindex && <div className="reindex-controls"><StrategyFields value={strategy} onChange={setStrategy} /><button className="secondary" onClick={reindex} disabled={reindexBusy}>{reindexBusy ? "排队中…" : "按此策略重建索引"}</button>{reindexError && <span role="alert">{reindexError}</span>}</div>}</footer>
+        <footer className="detail-footer"><button className="primary" onClick={onDownload}>下载原文件</button>{onDelete && <button className="secondary danger-action" onClick={onDelete}>删除材料</button>}{onReindex && <div className="reindex-controls"><StrategyFields value={strategy} onChange={setStrategy} /><button className="secondary" onClick={reindex} disabled={reindexBusy}>{reindexBusy ? "排队中…" : "按此策略重建索引"}</button>{reindexError && <span role="alert">{reindexError}</span>}</div>}</footer>
       </aside>
     </div>
   );

@@ -53,3 +53,10 @@
 - [x] 8.2 Run strict OpenSpec validation.
 - [ ] 8.3 Verify unauthenticated, student-upload and cross-class negative paths.
 - [ ] 8.4 Record evidence and archive the completed change.
+
+## 9. Teacher material deletion
+
+- [x] 9.1 Add a repeatable seed-deletion tombstone migration and skip tombstoned seed materials during startup; verify a deleted seed is not restored.
+- [x] 9.2 Implement teacher-only same-class `DELETE /api/materials/{id}` with uniform cross-class/unknown 404, processing-job conflict, cascading database removal, vector removal and private-file cleanup; verify student and failure paths.
+- [x] 9.3 Add confirmed delete actions in the teacher material UI and refresh visible materials after success; verify students cannot see delete controls.
+- [x] 9.4 Verify deletion of an uploaded and a seed material against Compose, including search and ask source disappearance after restart; update README and run strict OpenSpec validation.

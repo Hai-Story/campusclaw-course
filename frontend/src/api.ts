@@ -96,6 +96,7 @@ export const api = {
   materials: (query: string) =>
     request<{ materials: Material[] }>(`/api/materials?q=${encodeURIComponent(query)}`),
   material: (id: number) => request<{ material: Material }>(`/api/materials/${id}`),
+  deleteMaterial: (id: number) => request<void>(`/api/materials/${id}`, { method: "DELETE" }),
   knowledgeSearch: (query: string, mode: SearchMode, signal?: AbortSignal) => {
     const params = new URLSearchParams({ q: query, mode });
     return request<KnowledgeSearchResult>(`/api/knowledge/search?${params}`, { signal });

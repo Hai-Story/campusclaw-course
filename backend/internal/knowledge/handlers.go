@@ -105,11 +105,32 @@ func (s *Service) AskHTTP(w http.ResponseWriter, r *http.Request) {
 		httpx.Error(w, http.StatusServiceUnavailable, "问答服务暂时不可用")
 		return
 	}
+	answer = addSourceReferences(answer, len(result.Hits))
 	if !validCitations(answer, len(result.Hits)) {
 		httpx.Error(w, http.StatusBadGateway, "回答引用无效")
 		return
 	}
 	httpx.JSON(w, http.StatusOK, map[string]any{"answer": answer, "citations": result.Hits})
+}
+
+// Some compatible chat models omit inline citation markers despite receiving
+// numbered evidence. In that case, label the retrieved sources explicitly.
+func addSourceReferences(answer string, count int) string {
+	if citationPattern.MatchString(answer) || count == 0 {
+		return answer
+	}
+	var sources strings.Builder
+	sources.WriteString(answer)
+	sources.WriteString("\n\n可核对的检索来源：")
+	for i := 1; i <= count; i++ {
+		if i > 1 {
+			sources.WriteByte(' ')
+		}
+		sources.WriteString("[")
+		sources.WriteString(strconv.Itoa(i))
+		sources.WriteString("]")
+	}
+	return sources.String()
 }
 
 func validCitations(answer string, count int) bool {

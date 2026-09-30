@@ -105,6 +105,12 @@ The system MUST provide an authenticated non-streaming ask API. It MUST retrieve
 - **WHEN** a question has qualifying same-class passages
 - **THEN** the dialogue gateway receives the question plus only their titles, indices and chunk text, and the response contains a short answer with `[1]`-style references aligned to its citations list
 
+#### Scenario: Dialogue model omits inline references
+
+- **WHEN** the configured `course-chat` model returns an answer without inline citation markers despite receiving numbered same-class evidence
+- **THEN** the server appends clearly labelled retrieved source numbers to the answer and returns their authorized citation details
+- **AND** it still rejects any model-supplied citation number outside this request's evidence list
+
 #### Scenario: No evidence
 
 - **WHEN** a question has no qualifying same-class passage
@@ -136,9 +142,21 @@ The system MUST index existing knowledge entries and new successful uploads, pre
 - **WHEN** indexing is retried after a worker restart or transient failure
 - **THEN** each passage appears at most once for its current source version
 
+#### Scenario: Material is deleted
+
+- **WHEN** a teacher deletes a same-class material, including a seed material
+- **THEN** its chunks and vector points are removed from the active index and cannot appear in search or ask citations
+- **AND** later worker passes do not recreate the deleted entry
+
 ### Requirement: Safe retrieval presentation
 
-The web app MUST present search hits, citations and their source excerpts as non-executable content, including excerpts from Markdown materials, offer three retrieval modes and an ask interaction, and preserve the existing material-list search behavior.
+The web app MUST present search hits, citations and their source excerpts as non-executable content, including excerpts from Markdown materials, offer separate knowledge-search and knowledge-answer navigation, three retrieval modes and an ask interaction, and preserve the existing material-list search behavior.
+
+#### Scenario: Search and answer are separately discoverable
+
+- **WHEN** an authenticated user opens the app on desktop or mobile
+- **THEN** they can enter knowledge search and knowledge answering directly from navigation
+- **AND** semantic search is identified as the embedding-backed retrieval mode
 
 #### Scenario: Untrusted passage is displayed
 

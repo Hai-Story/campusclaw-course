@@ -60,6 +60,10 @@ var schema = []string{
 		CONSTRAINT fk_knowledge_class FOREIGN KEY (class_id) REFERENCES classes(id),
 		INDEX idx_knowledge_class (class_id)
 	) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+	`CREATE TABLE IF NOT EXISTS deleted_seed_materials (
+		stored_name VARCHAR(255) NOT NULL PRIMARY KEY,
+		deleted_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+	) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
 	`CREATE TABLE IF NOT EXISTS knowledge_index_jobs (
 		id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
 		entry_id BIGINT UNSIGNED NOT NULL,
