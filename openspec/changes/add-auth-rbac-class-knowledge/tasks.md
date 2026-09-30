@@ -14,8 +14,8 @@
 
 ## 3. Authentication
 
-- [x] 3.1 Implement login, signed opaque server sessions, `/api/me` and logout.
-- [x] 3.2 Rotate sessions on login and expire old/logout cookies immediately.
+- [x] 3.1 Implement login, signed Bearer tokens backed by revocable server sessions, `/api/me` and logout.
+- [x] 3.2 Issue a fresh token on login and immediately revoke its server session on logout; reject old cookie-only requests.
 - [x] 3.3 Add uniform credential failures and username+IP login throttling.
 
 ## 4. Isolation and authorization
@@ -33,7 +33,7 @@
 
 ## 6. Frontend
 
-- [x] 6.1 Restore identity from `/api/me`; redirect on 401.
+- [x] 6.1 Store the Bearer token in per-tab `sessionStorage`, restore identity from `/api/me` and redirect on 401.
 - [x] 6.2 Implement login, logout, material list, detail and authenticated download.
 - [x] 6.3 Gate the upload UI on `/api/me` and provide XHR progress.
 - [x] 6.4 Add PKU red brand styling, light/dark themes, list/grid views and responsive layout.

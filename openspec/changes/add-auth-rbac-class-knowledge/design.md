@@ -8,11 +8,11 @@
 
 ### D1：统一入口与同源 API
 
-浏览器只访问 Nginx。Nginx 托管前端并反代 `/api` 和 `/health`；数据库、API 端口和上传目录均不映射给宿主机。这样缩小可探测面，也避免跨域 Cookie 规则成为额外变量。
+浏览器只访问 Nginx。Nginx 托管前端并反代 `/api` 和 `/health`；数据库、API 端口和上传目录均不映射给宿主机。这样缩小可探测面，也避免跨域认证配置成为额外变量。
 
-### D2：服务端会话而非客户端声明
+### D2：签名 Bearer Token 与服务端可撤销会话
 
-Cookie 只保存带 HMAC 签名的不透明随机会话标识，设置 `HttpOnly` 与 `SameSite=Lax`。会话行记录用户上下文，服务端每次通过用户表确认角色和班级。登录换发新 ID，登出删除会话行。JWT/OAuth 会增加撤销和客户端声明可信度问题，不适合本次同源单体边界。
+登录返回 HMAC-SHA256 签名的 Bearer Token，其 `jti` 对应数据库中只存哈希的随机会话标识。浏览器仅在当前标签页的 `sessionStorage` 保存 Token，所有受保护请求使用 `Authorization: Bearer`，不依赖 Cookie。服务端校验签名、有效期和可撤销会话，并每次从用户表读取当前角色与班级；Token 中的身份声明不作为授权班级或角色。每次登录创建新会话，登出删除当前 Token 对应的会话行。相比纯无状态 JWT，这保留了即时撤销能力；Token 暴露仍可导致会话被冒用，因此前端不得执行上传材料中的 HTML。
 
 ### D3：班级隔离与资源存在性
 
@@ -47,8 +47,8 @@ Cookie 只保存带 HMAC 签名的不透明随机会话标识，设置 `HttpOnly
 
 | Method | Path | Policy |
 | --- | --- | --- |
-| POST | `/api/login` | 公开；统一失败响应与用户名+IP限流 |
-| POST | `/api/logout` | 会话；删除会话并清 Cookie |
+| POST | `/api/login` | 公开；统一失败响应与用户名+IP限流，返回 Bearer Token |
+| POST | `/api/logout` | Bearer 会话；撤销当前 Token 对应会话 |
 | GET | `/api/me` | 会话；返回用户、角色、班级 |
 | GET | `/api/materials` | 会话；仅查询本班，可用 `q` 搜索 |
 | GET | `/api/materials/{id}` | 会话+班级；跨班/不存在同形 404 |
