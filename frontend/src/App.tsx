@@ -1,7 +1,7 @@
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { ApiError, ChunkStrategy, KnowledgeHit, Material, User, api, downloadMaterial, uploadMaterial, SearchMode } from "./api";
+import { ApiError, ChunkStrategy, KnowledgeHit, Material, User, api, clearAccessToken, downloadMaterial, hasAccessToken, uploadMaterial, SearchMode } from "./api";
 
 type Theme = "light" | "dark";
 type ViewMode = "list" | "grid";
@@ -20,15 +20,23 @@ function App() {
   }, [theme]);
 
   useEffect(() => {
+    if (!hasAccessToken()) {
+      setStatus("guest");
+      return;
+    }
     api.me()
       .then(({ user: current }) => {
         setUser(current);
         setStatus("ready");
       })
-      .catch(() => setStatus("guest"));
+      .catch(() => {
+        clearAccessToken();
+        setStatus("guest");
+      });
   }, []);
 
   const unauthorized = useCallback(() => {
+    clearAccessToken();
     setUser(null);
     setStatus("guest");
   }, []);
@@ -77,6 +85,8 @@ function LoginScreen({
 }) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [token, setToken] = useState("");
+  const [loginMode, setLoginMode] = useState<"password" | "token">("password");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -85,7 +95,9 @@ function LoginScreen({
     setBusy(true);
     setError("");
     try {
-      const result = await api.login(username, password);
+      const result = loginMode === "token"
+        ? await api.useToken(token)
+        : await api.login(username, password);
       onLogin(result.user);
     } catch (reason) {
       setError(reason instanceof ApiError ? reason.message : "登录未完成");
@@ -114,37 +126,58 @@ function LoginScreen({
           <div className="seal">C</div>
           <div>
             <h2>进入教研仓</h2>
-            <p className="muted">请使用课程预置的教师或学生账号</p>
+            <p className="muted">使用课程账号，或输入已签发的访问 Token</p>
+          </div>
+          <div className="login-mode" role="group" aria-label="登录方式">
+            <button type="button" className={loginMode === "password" ? "selected" : ""} aria-pressed={loginMode === "password"} onClick={() => { setLoginMode("password"); setError(""); }}>账号密码</button>
+            <button type="button" className={loginMode === "token" ? "selected" : ""} aria-pressed={loginMode === "token"} onClick={() => { setLoginMode("token"); setError(""); }}>Token 登录</button>
           </div>
           <form onSubmit={submit}>
-            <label>
-              账号
-              <input
-                autoFocus
-                autoComplete="username"
-                value={username}
-                onChange={(event) => setUsername(event.target.value)}
-                placeholder="例如 teacher_a"
-                required
-              />
-            </label>
-            <label>
-              密码
-              <input
-                type="password"
-                autoComplete="current-password"
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
-                placeholder="输入账号密码"
-                required
-              />
-            </label>
+            {loginMode === "password" ? (
+              <>
+                <label>
+                  账号
+                  <input
+                    autoFocus
+                    autoComplete="username"
+                    value={username}
+                    onChange={(event) => setUsername(event.target.value)}
+                    placeholder="例如 teacher_a"
+                    required
+                  />
+                </label>
+                <label>
+                  密码
+                  <input
+                    type="password"
+                    autoComplete="current-password"
+                    value={password}
+                    onChange={(event) => setPassword(event.target.value)}
+                    placeholder="输入账号密码"
+                    required
+                  />
+                </label>
+              </>
+            ) : (
+              <label>
+                访问 Token
+                <input
+                  autoFocus
+                  type="password"
+                  autoComplete="off"
+                  value={token}
+                  onChange={(event) => setToken(event.target.value)}
+                  placeholder="粘贴 Token 或 Bearer Token"
+                  required
+                />
+              </label>
+            )}
             {error && <p className="form-error" role="alert">{error}</p>}
             <button className="primary wide" disabled={busy}>
               {busy ? "正在确认…" : "登录"}
             </button>
           </form>
-          <p className="privacy-note">登录状态保存在 HttpOnly 会话中，不在浏览器保存角色或班级。</p>
+          <p className="privacy-note">访问 Token 保存在当前浏览器标签会话中；退出登录后会清除。请勿向他人分享 Token。</p>
         </div>
       </section>
     </main>
@@ -308,7 +341,7 @@ function Library({
           <div>
             <p className="location">{user.class_name} / {section === "materials" ? "材料库" : section === "ask" ? "知识问答" : "知识检索"}</p>
             <h1>{section === "materials" ? "教研材料" : section === "ask" ? "依据资料问答" : "可追溯检索"}</h1>
-            <p className="header-note">{section === "materials" ? `共 ${materials.length} 份可见材料` : section === "ask" ? "提问后核对回答所用的本班材料" : "检索本班切片，核对每条依据"} · 权限来自服务端会话</p>
+            <p className="header-note">{section === "materials" ? `共 ${materials.length} 份可见材料` : section === "ask" ? "提问后核对回答所用的本班材料" : "检索本班切片，核对每条依据"} · 权限由服务端校验</p>
           </div>
           <div className="header-actions">
             <button className="icon-button" onClick={() => setTheme(theme === "light" ? "dark" : "light")} aria-label="切换主题">
@@ -538,7 +571,6 @@ function StrategyFields({ value, onChange }: { value: ChunkStrategy; onChange: (
 function UploadDialog({ onClose, onUploaded, onError }: { onClose: () => void; onUploaded: () => void; onError: (reason: unknown) => void }) {
   const [file, setFile] = useState<File | null>(null);
   const [title, setTitle] = useState("");
-  const [progress, setProgress] = useState(0);
   const [busy, setBusy] = useState(false);
   const [strategy, setStrategy] = useState<ChunkStrategy>({ mode: "auto" });
 
@@ -547,7 +579,7 @@ function UploadDialog({ onClose, onUploaded, onError }: { onClose: () => void; o
     if (!file) return;
     setBusy(true);
     try {
-      await uploadMaterial(file, title, strategy.mode === "custom" ? { max_length: 800, overlap_percent: 10, separator: "newline", ...strategy } : strategy, setProgress);
+      await uploadMaterial(file, title, strategy.mode === "custom" ? { max_length: 800, overlap_percent: 10, separator: "newline", ...strategy } : strategy);
       onUploaded();
     } catch (reason) {
       onError(reason);
@@ -569,7 +601,7 @@ function UploadDialog({ onClose, onUploaded, onError }: { onClose: () => void; o
         </label>
         <label>材料标题（可选）<input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="默认使用文件名" maxLength={255} /></label>
         <div className="upload-strategy"><StrategyFields value={strategy} onChange={setStrategy} /></div>
-        {busy && <div className="progress-block"><div><span>正在上传并入库</span><strong>{progress}%</strong></div><progress max="100" value={progress} /></div>}
+        {busy && <div className="progress-block"><div><span>正在上传并入库</span></div><progress /></div>}
         <div className="dialog-actions"><button type="button" className="secondary" onClick={onClose} disabled={busy}>取消</button><button className="primary" disabled={!file || busy}>{busy ? "处理中…" : "上传材料"}</button></div>
       </form>
     </div>

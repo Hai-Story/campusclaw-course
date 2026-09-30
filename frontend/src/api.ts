@@ -65,11 +65,33 @@ export class ApiError extends Error {
   }
 }
 
-async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+// Start the token-only flow with a fresh login after upgrading from the cookie-compatible build.
+sessionStorage.removeItem("campus-access-token");
+const tokenKey = "campus-access-token-v2";
+let accessToken = sessionStorage.getItem(tokenKey) || "";
+
+export function hasAccessToken() {
+  return accessToken !== "";
+}
+
+export function clearAccessToken() {
+  accessToken = "";
+  sessionStorage.removeItem(tokenKey);
+}
+
+function saveAccessToken(token: string) {
+  accessToken = token;
+  sessionStorage.setItem(tokenKey, token);
+}
+
+async function request<T>(path: string, options: RequestInit = {}, sendToken = true): Promise<T> {
+  const headers = new Headers(options.headers);
+  if (options.body && !headers.has("Content-Type")) headers.set("Content-Type", "application/json");
+  if (sendToken && accessToken && !headers.has("Authorization")) headers.set("Authorization", `Bearer ${accessToken}`);
   const response = await fetch(path, {
     ...options,
-    credentials: "same-origin",
-    headers: { "Content-Type": "application/json", ...(options.headers ?? {}) }
+    credentials: "omit",
+    headers
   });
   if (!response.ok) {
     let message = "请求未完成";
@@ -87,12 +109,29 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 
 export const api = {
   me: () => request<{ user: User }>("/api/me"),
-  login: (username: string, password: string) =>
-    request<{ user: User }>("/api/login", {
+  login: async (username: string, password: string) => {
+    const result = await request<{ user: User; token: string }>("/api/login", {
       method: "POST",
       body: JSON.stringify({ username, password })
-    }),
-  logout: () => request<void>("/api/logout", { method: "POST" }),
+    }, false);
+    saveAccessToken(result.token);
+    return result;
+  },
+  useToken: async (value: string) => {
+    const token = value.trim().replace(/^Bearer\s+/i, "");
+    const result = await request<{ user: User }>("/api/me", {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    saveAccessToken(token);
+    return result;
+  },
+  logout: async () => {
+    try {
+      await request<void>("/api/logout", { method: "POST" });
+    } finally {
+      clearAccessToken();
+    }
+  },
   materials: (query: string) =>
     request<{ materials: Material[] }>(`/api/materials?q=${encodeURIComponent(query)}`),
   material: (id: number) => request<{ material: Material }>(`/api/materials/${id}`),
@@ -109,43 +148,37 @@ export const api = {
   })
 };
 
-export function uploadMaterial(
+export async function uploadMaterial(
   file: File,
   title: string,
-  strategy: ChunkStrategy,
-  onProgress: (percent: number) => void
+  strategy: ChunkStrategy
 ): Promise<{ id: number; message: string }> {
-  return new Promise((resolve, reject) => {
-    const xhr = new XMLHttpRequest();
-    xhr.open("POST", "/api/materials");
-    xhr.withCredentials = true;
-    xhr.upload.onprogress = (event) => {
-      if (event.lengthComputable) onProgress(Math.round((event.loaded / event.total) * 100));
-    };
-    xhr.onload = () => {
-      let body: { id?: number; message?: string; error?: string } = {};
-      try {
-        body = JSON.parse(xhr.responseText) as typeof body;
-      } catch {
-        // The status still carries the failure semantics.
-      }
-      if (xhr.status >= 200 && xhr.status < 300 && body.id) {
-        resolve({ id: body.id, message: body.message || "材料已入库" });
-      } else {
-        reject(new ApiError(xhr.status, body.error || "上传未完成"));
-      }
-    };
-    xhr.onerror = () => reject(new ApiError(0, "网络连接失败"));
-    const form = new FormData();
-    form.append("file", file);
-    if (title.trim()) form.append("title", title.trim());
-    form.append("strategy", JSON.stringify(strategy));
-    xhr.send(form);
+  const form = new FormData();
+  form.append("file", file);
+  if (title.trim()) form.append("title", title.trim());
+  form.append("strategy", JSON.stringify(strategy));
+  const headers = new Headers();
+  if (accessToken) headers.set("Authorization", `Bearer ${accessToken}`);
+  const response = await fetch("/api/materials", {
+    method: "POST",
+    body: form,
+    headers,
+    credentials: "omit"
   });
+  let body: { id?: number; message?: string; error?: string } = {};
+  try {
+    body = await response.json() as typeof body;
+  } catch {
+    // The status still carries the failure semantics.
+  }
+  if (!response.ok || !body.id) throw new ApiError(response.status, body.error || "上传未完成");
+  return { id: body.id, message: body.message || "材料已入库" };
 }
 
 export async function downloadMaterial(item: Material): Promise<void> {
-  const response = await fetch(`/api/materials/${item.id}/file`, { credentials: "same-origin" });
+  const headers = new Headers();
+  if (accessToken) headers.set("Authorization", `Bearer ${accessToken}`);
+  const response = await fetch(`/api/materials/${item.id}/file`, { credentials: "omit", headers });
   if (!response.ok) {
     let message = response.status === 404 ? "未找到材料" : "下载未完成";
     try {

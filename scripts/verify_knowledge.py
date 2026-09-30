@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """Exercise class-scoped retrieval against a local Compose/test-gateway stack."""
 
-import http.cookiejar
 import json
 import os
 import time
@@ -15,8 +14,19 @@ BASE = os.environ.get("BASE_URL", "http://127.0.0.1:18081").rstrip("/")
 STATS = os.environ.get("MOCK_GATEWAY_STATS", "http://127.0.0.1:18765/stats")
 
 
+class Client:
+    def __init__(self):
+        self.opener = urllib.request.build_opener()
+        self.token = None
+
+    def open(self, request, timeout):
+        if self.token:
+            request.add_header("Authorization", "Bearer " + self.token)
+        return self.opener.open(request, timeout=timeout)
+
+
 def client():
-    return urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
+    return Client()
 
 
 def call(opener, path, method="GET", payload=None, headers=None):
@@ -40,8 +50,9 @@ def assert_status(status, expected, label):
 
 
 def login(opener, username, password):
-    status, _ = call(opener, "/api/login", "POST", {"username": username, "password": password})
+    status, result = call(opener, "/api/login", "POST", {"username": username, "password": password})
     assert_status(status, 200, f"login {username}")
+    opener.token = result["token"]
 
 
 def search(opener, query, mode="hybrid", class_id=None):
