@@ -187,6 +187,45 @@ kbd { border: 1px solid var(--line); background: var(--quiet); border-radius: 3p
 .markdown-body code { background: var(--quiet); padding: 2px 5px; border-radius: 3px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
 .markdown-body blockquote { margin-left: 0; padding-left: 18px; border-left: 3px solid var(--red); color: var(--muted); }
 .detail-drawer footer { border-top: 1px solid var(--line); padding: 18px 34px; }
+.detail-footer { display: grid; gap: 18px; max-height: 36vh; overflow: auto; }
+.citation-note { margin: 0 0 18px; color: var(--red); font-size: 13px; }
+.processed-excerpt { margin: 0 0 22px; padding: 14px 18px; border-left: 3px solid var(--red); background: var(--red-soft); white-space: pre-wrap; }
+.document-body mark { background: #f9db91; color: #26211b; border-radius: 2px; }
+.reindex-controls { display: grid; gap: 10px; padding-top: 14px; border-top: 1px solid var(--line); }
+.reindex-controls > button { justify-self: start; }
+.reindex-controls > span { color: var(--red); font-size: 12px; }
+
+.knowledge-panel { max-width: 980px; margin-top: 48px; display: grid; gap: 22px; }
+.mobile-sections { display: none; }
+.knowledge-search { padding: 28px; background: var(--paper); border: 1px solid var(--line); display: grid; gap: 16px; }
+.knowledge-search > label { font: 700 20px/1.3 "Songti SC", serif; }
+.knowledge-query-row { display: flex; gap: 12px; }
+.knowledge-query-row input { flex: 1; min-width: 0; }
+.mode-switch { display: flex; flex-wrap: wrap; gap: 6px; }
+.mode-switch button { background: var(--quiet); color: var(--muted); border: 1px solid var(--line); }
+.mode-switch button.selected { background: var(--red-soft); color: var(--red); border-color: var(--red); }
+.search-explainer { color: var(--muted); font-size: 12px; margin: 0; line-height: 1.6; }
+.index-notice { padding: 12px 15px; border-left: 3px solid var(--green); background: var(--quiet); color: var(--muted); margin: 0; }
+.index-notice.warning { border-left-color: var(--red); }
+.knowledge-state { color: var(--muted); padding: 40px; text-align: center; border: 1px dashed var(--line); }
+.knowledge-results { display: grid; gap: 14px; }
+.knowledge-hit { padding: 24px 28px; background: var(--paper); border: 1px solid var(--line); display: grid; gap: 9px; }
+.hit-meta { display: flex; flex-wrap: wrap; gap: 16px; justify-content: space-between; color: var(--red); font-size: 12px; }
+.knowledge-hit h2 { font: 700 21px/1.4 "Songti SC", serif; margin: 0; }
+.hit-file { margin: 0; color: var(--muted); font-size: 12px; }
+.knowledge-hit blockquote { margin: 8px 0; padding: 13px 17px; border-left: 3px solid var(--red); background: var(--quiet); white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.7; }
+.knowledge-hit > button { justify-self: start; }
+.answer-card { padding: 25px 28px; background: var(--red-soft); border: 1px solid var(--red); }
+.answer-card .eyebrow { color: var(--red); font-size: 12px; font-weight: 700; margin: 0 0 12px; }
+.answer-card > p:not(.eyebrow) { white-space: pre-wrap; line-height: 1.8; margin: 0; }
+.answer-citations { display: flex; flex-wrap: wrap; gap: 8px; padding-top: 18px; }
+.answer-citations button { background: var(--paper); color: var(--ink); border: 1px solid var(--line); font-size: 12px; }
+.strategy-fields { display: grid; gap: 10px; }
+.strategy-fields label { display: grid; gap: 5px; font-size: 12px; color: var(--muted); }
+.strategy-fields select, .strategy-fields input[type="number"] { width: 100%; background: var(--paper); color: var(--ink); border: 1px solid var(--line); padding: 9px 10px; }
+.strategy-custom { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.strategy-fields .check-option { display: flex; align-items: center; gap: 7px; }
+.upload-strategy { margin: 14px 30px 22px; }
 
 .overlay.centered { justify-content: center; align-items: center; padding: 22px; }
 .upload-dialog { width: min(540px, 100%); max-height: 92vh; overflow: auto; background: var(--paper); box-shadow: var(--shadow); }
@@ -229,6 +268,9 @@ progress { width: 100%; height: 5px; border: 0; accent-color: var(--red); }
   .app-shell { grid-template-columns: 1fr; }
   .rail { position: sticky; height: auto; flex-direction: row; align-items: center; padding: 12px 20px; border-right: 0; border-bottom: 1px solid var(--line); }
   .rail nav, .rail-note { display: none; }
+  .mobile-sections { display: flex; gap: 6px; margin-top: 24px; border-bottom: 1px solid var(--line); }
+  .mobile-sections button { border: 0; border-bottom: 3px solid transparent; background: transparent; color: var(--muted); padding: 11px 14px; }
+  .mobile-sections button.selected { color: var(--red); border-color: var(--red); font-weight: 700; }
   .profile { margin-left: auto; padding: 0; border: 0; }
   .profile .avatar, .profile > div:nth-child(2) { display: none; }
   .workspace { padding: 34px 24px 54px; }
@@ -248,6 +290,9 @@ progress { width: 100%; height: 5px; border: 0; accent-color: var(--red); }
   .detail-drawer { width: 100%; }
   .detail-drawer header, .document-body, .detail-meta { padding-left: 22px; padding-right: 22px; }
   .theme-fab { top: 14px; right: 14px; }
+  .knowledge-panel { margin-top: 26px; }
+  .knowledge-query-row { flex-direction: column; }
+  .strategy-custom { grid-template-columns: 1fr; }
 }
 
 @media (prefers-reduced-motion: reduce) {

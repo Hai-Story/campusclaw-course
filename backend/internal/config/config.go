@@ -1,8 +1,11 @@
 package config
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -23,6 +26,15 @@ type Config struct {
 	LoginMaxFailures int
 	LoginLock        time.Duration
 	SeedPasswords    map[string]string
+	QdrantURL        string
+	GatewayBaseURL   string
+	GatewayAPIKey    string
+	EmbeddingModel   string
+	ChatModel        string
+	EmbeddingDim     int
+	IndexVersion     string
+	IndexRetryMax    int
+	IndexRetry       time.Duration
 }
 
 func Load() (Config, error) {
@@ -31,6 +43,8 @@ func Load() (Config, error) {
 		"SESSION_SECRET", "SESSION_TTL_MINUTES", "UPLOAD_DIR", "MAX_UPLOAD_BYTES",
 		"LOGIN_MAX_FAILURES", "LOGIN_LOCK_SECONDS", "SEED_TEACHER_A_PASSWORD",
 		"SEED_STUDENT_A1_PASSWORD", "SEED_STUDENT_B1_PASSWORD",
+		"QDRANT_URL", "GATEWAY_BASE_URL", "GATEWAY_API_KEY", "EMBEDDING_MODEL",
+		"CHAT_MODEL", "EMBEDDING_DIMENSION", "INDEX_RETRY_MAX", "INDEX_RETRY_SECONDS",
 	}
 	values := make(map[string]string, len(required))
 	var missing []string
@@ -64,6 +78,26 @@ func Load() (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
+	embeddingDim, err := positiveInt(values["EMBEDDING_DIMENSION"], "EMBEDDING_DIMENSION")
+	if err != nil || embeddingDim > 4096 {
+		return Config{}, errors.New("EMBEDDING_DIMENSION must be between 1 and 4096")
+	}
+	retryMax, err := positiveInt(values["INDEX_RETRY_MAX"], "INDEX_RETRY_MAX")
+	if err != nil {
+		return Config{}, err
+	}
+	retrySeconds, err := positiveInt(values["INDEX_RETRY_SECONDS"], "INDEX_RETRY_SECONDS")
+	if err != nil {
+		return Config{}, err
+	}
+	for _, name := range []string{"QDRANT_URL", "GATEWAY_BASE_URL"} {
+		parsed, err := url.Parse(values[name])
+		if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" {
+			return Config{}, fmt.Errorf("%s must be an absolute HTTP URL", name)
+		}
+	}
+	versionInput := fmt.Sprintf("chunks-v2|%s|%d", values["EMBEDDING_MODEL"], embeddingDim)
+	versionHash := sha256.Sum256([]byte(versionInput))
 
 	return Config{
 		APIAddr:          values["API_ADDR"],
@@ -83,6 +117,15 @@ func Load() (Config, error) {
 			"student_a1": values["SEED_STUDENT_A1_PASSWORD"],
 			"student_b1": values["SEED_STUDENT_B1_PASSWORD"],
 		},
+		QdrantURL:      strings.TrimRight(values["QDRANT_URL"], "/"),
+		GatewayBaseURL: strings.TrimRight(values["GATEWAY_BASE_URL"], "/"),
+		GatewayAPIKey:  values["GATEWAY_API_KEY"],
+		EmbeddingModel: values["EMBEDDING_MODEL"],
+		ChatModel:      values["CHAT_MODEL"],
+		EmbeddingDim:   embeddingDim,
+		IndexVersion:   "v2-" + hex.EncodeToString(versionHash[:12]),
+		IndexRetryMax:  retryMax,
+		IndexRetry:     time.Duration(retrySeconds) * time.Second,
 	}, nil
 }
 
