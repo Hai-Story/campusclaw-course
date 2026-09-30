@@ -72,6 +72,13 @@ func Seed(ctx context.Context, database *sql.DB, cfg config.Config) error {
 }
 
 func seedOneMaterial(ctx context.Context, database *sql.DB, uploadDir string, item seedMaterial) error {
+	var deleted int
+	if err := database.QueryRowContext(ctx, `SELECT COUNT(*) FROM deleted_seed_materials WHERE stored_name=?`, item.StoredName).Scan(&deleted); err != nil {
+		return err
+	}
+	if deleted > 0 {
+		return nil
+	}
 	var materialID uint64
 	err := database.QueryRowContext(ctx, `SELECT m.id FROM materials m JOIN classes c ON c.id=m.class_id
 		WHERE c.name=? AND m.source='seed' AND m.title=? LIMIT 1`, item.ClassName, item.Title).Scan(&materialID)

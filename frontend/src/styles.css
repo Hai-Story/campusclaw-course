@@ -154,6 +154,8 @@ kbd { border: 1px solid var(--line); background: var(--quiet); border-radius: 3p
 .material-copy small { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .quiet-action { align-self: center; background: transparent; color: var(--muted); margin-right: 6px; }
 .quiet-action:hover { color: var(--red); }
+.danger-action { color: var(--red); }
+.danger-action:hover { background: var(--red-soft); }
 
 .material-collection.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px; }
 .grid .material-item { border: 1px solid var(--line); min-height: 230px; display: flex; flex-direction: column; }

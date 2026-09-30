@@ -70,6 +70,7 @@ func main() {
 	mux.Handle("POST /api/materials", authenticator.Require(http.HandlerFunc(materialHandler.Upload)))
 	mux.Handle("GET /api/materials/{id}", authenticator.Require(http.HandlerFunc(materialHandler.Detail)))
 	mux.Handle("GET /api/materials/{id}/file", authenticator.Require(http.HandlerFunc(materialHandler.Download)))
+	mux.Handle("DELETE /api/materials/{id}", authenticator.Require(http.HandlerFunc(knowledgeService.DeleteMaterialHTTP)))
 	mux.Handle("POST /api/materials/{id}/reindex", authenticator.Require(http.HandlerFunc(knowledgeService.ReindexHTTP)))
 	mux.Handle("GET /api/knowledge/search", authenticator.Require(http.HandlerFunc(knowledgeService.SearchHTTP)))
 	mux.Handle("POST /api/ask", authenticator.Require(http.HandlerFunc(knowledgeService.AskHTTP)))

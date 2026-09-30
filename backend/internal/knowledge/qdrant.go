@@ -128,13 +128,18 @@ func (v *vectorStore) DeleteEntry(ctx context.Context, classID, entryID uint64) 
 		map[string]any{"key": "class_id", "match": map[string]any{"value": classID}},
 		map[string]any{"key": "entry_id", "match": map[string]any{"value": entryID}},
 	}}
-	_, err := v.request(ctx, http.MethodPost, "/collections/"+collectionName+"/points/delete?wait=true", map[string]any{"filter": filter}, nil)
+	status, err := v.request(ctx, http.MethodPost, "/collections/"+collectionName+"/points/delete?wait=true", map[string]any{"filter": filter}, nil)
+	if status == http.StatusNotFound {
+		return nil
+	}
 	return err
 }
 
 func (v *vectorStore) RecreateCollection(ctx context.Context) error {
 	status, err := v.request(ctx, http.MethodDelete, "/collections/"+collectionName, nil, nil)
-	if err != nil && status != http.StatusNotFound { return err }
+	if err != nil && status != http.StatusNotFound {
+		return err
+	}
 	_, err = v.EnsureCollection(ctx)
 	return err
 }

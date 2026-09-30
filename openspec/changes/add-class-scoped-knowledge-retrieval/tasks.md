@@ -25,7 +25,7 @@
 
 ## 4. Web search and source navigation
 
-- [ ] 4.1 Add a separate knowledge-search view with three modes and an ask input without replacing `/api/materials?q=...`; verify material-list search and command palette still work.
+- [x] 4.1 Add separately discoverable knowledge-search and knowledge-answer views, with three search modes and an ask input, without replacing `/api/materials?q=...`; verify material-list search and command palette still work.
 - [ ] 4.2 Render hits, source metadata, citations, no-evidence/pending/degraded/error states and bounded input as safe text; verify uploaded HTML cannot execute in results or answers.
 - [ ] 4.3 Open authenticated material detail from a hit, highlight original-basis range or label processed-basis excerpt, and retain download; verify stale or cross-class navigation shows unavailable.
 - [ ] 4.4 Cancel or ignore out-of-order search/ask responses when the query changes; verify an earlier slow request cannot replace current results.
@@ -36,3 +36,5 @@
 - [ ] 5.2 Verify seed and new uploads become searchable, custom/hierarchy rebuild replaces old chunks, and interrupted indexing resumes without duplicates; verify against Compose with a test gateway.
 - [ ] 5.3 Document gateway data flow/configuration, model/version pinning, index states, rebuild, rollback and unchanged material search in README; verify documented clean-volume commands where the environment supports them.
 - [ ] 5.4 Run Go tests/vet/build, frontend production build and `openspec validate add-class-scoped-knowledge-retrieval --strict`; record actual outcomes and any unavailable environment checks before marking implementation complete.
+- [x] 5.5 Verify `course-embedding` (2048 dimensions) and `course-chat` through the authenticated API; when chat omits inline markers, show labelled retrieved sources while rejecting out-of-range citations.
+- [x] 5.6 Verify deleting uploaded and seed materials removes their search/ask candidates and vector points without worker resurrection.

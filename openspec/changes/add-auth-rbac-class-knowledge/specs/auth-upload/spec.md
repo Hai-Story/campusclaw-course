@@ -76,6 +76,32 @@ The system MUST provide database-backed class-scoped list/search, detail and aut
 - **WHEN** an authenticated teacher or student requests a material in their class
 - **THEN** the list/detail data comes from the database and the file is served only after authorization
 
+### Requirement: R5a Teacher material deletion
+
+The system MUST let teachers delete same-class uploaded and seed materials after explicit confirmation in the web app. The server MUST derive role and class from the session, return 403 for students, and return the same 404 response for cross-class and unknown IDs. A successful deletion MUST remove the material's authoritative content and private file, make all its chunks and vectors unavailable to search and answers, and persist a tombstone for deleted seed material so startup does not restore it. Deletion MUST not race an active index worker.
+
+#### Scenario: Teacher deletes a same-class upload
+
+- **WHEN** a teacher confirms deletion of a material uploaded to their class
+- **THEN** the API returns 204 and the material disappears from list, detail, download, knowledge search and ask sources
+- **AND** its database descendants, private file and vector points are removed
+
+#### Scenario: Teacher deletes a seed material
+
+- **WHEN** a teacher deletes a seed material belonging to their class and restarts the service
+- **THEN** the material stays deleted and the seed procedure does not recreate its row, content or file
+
+#### Scenario: Student or cross-class deletion
+
+- **WHEN** a student attempts deletion, or a teacher supplies an ID from another class
+- **THEN** the student receives 403, while the cross-class ID receives the same 404 as an unknown ID
+- **AND** neither attempt changes any material or index data
+
+#### Scenario: Index worker is processing
+
+- **WHEN** a teacher requests deletion while the material's index job is processing
+- **THEN** the API returns 409 and leaves the material intact for a later retry
+
 ### Requirement: R6 Idempotent seed data
 
 The system MUST seed distinguishable A/B class data and the prescribed teacher/student accounts without duplicating or overwriting uploaded content on restart.
@@ -125,4 +151,3 @@ The web app MUST use a PKU-red visual system and provide light/dark themes, resp
 
 - **WHEN** a user switches theme/view, searches, opens the command palette, uploads, or reads Markdown on desktop or mobile
 - **THEN** each interaction provides visible feedback and remains keyboard accessible
-

@@ -122,6 +122,13 @@ func TestAnswerCitationsStayWithinEvidence(t *testing.T) {
 	if !validCitations("依据一 [1] 与依据二 [2]", 2) || validCitations("虚构 [3]", 2) || validCitations("没有引用", 2) {
 		t.Fatal("citation bounds were not enforced")
 	}
+	answer := addSourceReferences("依据资料作答。", 2)
+	if !validCitations(answer, 2) || !strings.Contains(answer, "可核对的检索来源：[1] [2]") {
+		t.Fatalf("missing retrieved source references: %q", answer)
+	}
+	if got := addSourceReferences("已有引用 [1]", 2); got != "已有引用 [1]" {
+		t.Fatalf("unexpected duplicate source references: %q", got)
+	}
 }
 
 func TestSearchRejectsInvalidInputBeforeDatabase(t *testing.T) {
