@@ -27,6 +27,9 @@ func TestLoadAcceptsCompleteEnvironment(t *testing.T) {
 		"SESSION_TTL_MINUTES": "480", "UPLOAD_DIR": "/tmp/uploads", "MAX_UPLOAD_BYTES": "1024",
 		"LOGIN_MAX_FAILURES": "5", "LOGIN_LOCK_SECONDS": "300", "SEED_TEACHER_A_PASSWORD": "one",
 		"SEED_STUDENT_A1_PASSWORD": "two", "SEED_STUDENT_B1_PASSWORD": "three",
+		"QDRANT_URL": "http://qdrant:6333", "GATEWAY_BASE_URL": "http://gateway:8000/v1",
+		"GATEWAY_API_KEY": "test-key", "EMBEDDING_MODEL": "test-embedding", "CHAT_MODEL": "test-chat",
+		"EMBEDDING_DIMENSION": "4", "INDEX_RETRY_MAX": "3", "INDEX_RETRY_SECONDS": "2",
 	}
 	for key, value := range values {
 		t.Setenv(key, value)
@@ -35,7 +38,7 @@ func TestLoadAcceptsCompleteEnvironment(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.MaxUploadBytes != 1024 || cfg.LoginMaxFailures != 5 {
+	if cfg.MaxUploadBytes != 1024 || cfg.LoginMaxFailures != 5 || cfg.EmbeddingDim != 4 || cfg.IndexVersion == "" {
 		t.Fatalf("unexpected parsed config: %+v", cfg)
 	}
 }

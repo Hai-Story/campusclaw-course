@@ -1,7 +1,7 @@
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { ApiError, Material, User, api, downloadMaterial, uploadMaterial } from "./api";
+import { ApiError, ChunkStrategy, KnowledgeHit, Material, User, api, downloadMaterial, uploadMaterial, SearchMode } from "./api";
 
 type Theme = "light" | "dark";
 type ViewMode = "list" | "grid";
@@ -166,6 +166,8 @@ function Library({
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<Material | null>(null);
+  const [selectedCitation, setSelectedCitation] = useState<KnowledgeHit | null>(null);
+  const [section, setSection] = useState<"materials" | "knowledge">("materials");
   const [view, setView] = useState<ViewMode>(() =>
     localStorage.getItem("campus-view") === "grid" ? "grid" : "list"
   );
@@ -225,13 +227,18 @@ function Library({
     return () => window.removeEventListener("keydown", listener);
   }, []);
 
-  async function openMaterial(item: Material) {
+  async function openMaterial(item: Material, citation: KnowledgeHit | null = null) {
     try {
       const result = await api.material(item.id);
       setSelected(result.material);
+      setSelectedCitation(citation);
     } catch (reason) {
       handleError(reason);
     }
+  }
+
+  async function openCitation(hit: KnowledgeHit) {
+    await openMaterial({ id: hit.material_id } as Material, hit);
   }
 
   async function logout() {
@@ -243,7 +250,8 @@ function Library({
   }
 
   const commands = useMemo(() => [
-    { label: "搜索本班材料", hint: "/", run: () => searchRef.current?.focus() },
+    { label: "搜索本班材料", hint: "/", run: () => { setSection("materials"); window.setTimeout(() => searchRef.current?.focus(), 0); } },
+    { label: "知识库检索", hint: "检索", run: () => setSection("knowledge") },
     ...(user.role === "teacher" ? [{ label: "上传教研材料", hint: "教师", run: () => setUploadOpen(true) }] : []),
     { label: theme === "light" ? "切换到深色主题" : "切换到浅色主题", hint: "主题", run: () => setTheme(theme === "light" ? "dark" : "light") },
     { label: view === "list" ? "切换到网格视图" : "切换到列表视图", hint: "视图", run: () => setView(view === "list" ? "grid" : "list") },
@@ -258,7 +266,8 @@ function Library({
           <div><strong>CampusClaw</strong><span>教研仓</span></div>
         </div>
         <nav aria-label="主导航">
-          <button className="nav-item active"><span>册</span>材料库</button>
+          <button className={`nav-item ${section === "materials" ? "active" : ""}`} onClick={() => setSection("materials")}><span>册</span>材料库</button>
+          <button className={`nav-item ${section === "knowledge" ? "active" : ""}`} onClick={() => setSection("knowledge")}><span>⌕</span>知识检索</button>
           <button className="nav-item" onClick={() => setCommandsOpen(true)}><span>⌘</span>快捷命令</button>
         </nav>
         <div className="rail-note">
@@ -277,9 +286,9 @@ function Library({
       <main className="workspace">
         <header className="workspace-header">
           <div>
-            <p className="location">{user.class_name} / 材料库</p>
-            <h1>教研材料</h1>
-            <p className="header-note">共 {materials.length} 份可见材料 · 权限来自服务端会话</p>
+            <p className="location">{user.class_name} / {section === "materials" ? "材料库" : "知识检索"}</p>
+            <h1>{section === "materials" ? "教研材料" : "可追溯检索"}</h1>
+            <p className="header-note">{section === "materials" ? `共 ${materials.length} 份可见材料` : "检索本班切片，核对每条依据"} · 权限来自服务端会话</p>
           </div>
           <div className="header-actions">
             <button className="icon-button" onClick={() => setTheme(theme === "light" ? "dark" : "light")} aria-label="切换主题">
@@ -292,7 +301,12 @@ function Library({
           </div>
         </header>
 
-        <section className="toolbar" aria-label="材料筛选与视图">
+        <div className="mobile-sections" role="group" aria-label="工作区切换">
+          <button className={section === "materials" ? "selected" : ""} onClick={() => setSection("materials")}>材料库</button>
+          <button className={section === "knowledge" ? "selected" : ""} onClick={() => setSection("knowledge")}>知识检索</button>
+        </div>
+
+        {section === "materials" ? <><section className="toolbar" aria-label="材料筛选与视图">
           <div className="search-wrap">
             <span aria-hidden="true">⌕</span>
             <input
@@ -334,10 +348,10 @@ function Library({
               <button className="quiet-action" onClick={() => downloadMaterial(item).then(() => toast("下载已开始", "success")).catch(handleError)}>下载</button>
             </article>
           ))}
-        </section>
+        </section></> : <KnowledgePanel onOpen={openCitation} onError={handleError} />}
       </main>
 
-      {selected && <DetailDrawer item={selected} onClose={() => setSelected(null)} onDownload={() => downloadMaterial(selected).then(() => toast("下载已开始", "success")).catch(handleError)} />}
+      {selected && <DetailDrawer item={selected} citation={selectedCitation} onClose={() => { setSelected(null); setSelectedCitation(null); }} onDownload={() => downloadMaterial(selected).then(() => toast("下载已开始", "success")).catch(handleError)} onReindex={user.role === "teacher" ? async (strategy) => { await api.reindex(selected.id, strategy); toast("索引重建已排队", "success"); } : undefined} />}
       {uploadOpen && user.role === "teacher" && <UploadDialog onClose={() => setUploadOpen(false)} onUploaded={() => { setUploadOpen(false); loadMaterials(query); toast("材料已入库，本班现在可以查看", "success"); }} onError={handleError} />}
       {commandsOpen && <CommandPalette commands={commands} onClose={() => setCommandsOpen(false)} />}
       <div className="toast-region" aria-live="polite">
@@ -347,8 +361,111 @@ function Library({
   );
 }
 
-function DetailDrawer({ item, onClose, onDownload }: { item: Material; onClose: () => void; onDownload: () => void }) {
+function KnowledgePanel({ onOpen, onError }: { onOpen: (hit: KnowledgeHit) => void; onError: (reason: unknown) => void }) {
+  const [query, setQuery] = useState("");
+  const [mode, setMode] = useState<SearchMode>("hybrid");
+  const [hits, setHits] = useState<KnowledgeHit[]>([]);
+  const [indexState, setIndexState] = useState<"ready" | "building" | "degraded">("ready");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [answer, setAnswer] = useState<{ text: string; citations: KnowledgeHit[] } | null>(null);
+  const [asking, setAsking] = useState(false);
+  const askController = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    askController.current?.abort();
+    setAsking(false);
+    setAnswer(null);
+    if (!query.trim() || Array.from(query.trim()).length > 200) {
+      setHits([]);
+      setLoading(false);
+      setError("");
+      return;
+    }
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => {
+      setLoading(true);
+      setError("");
+      api.knowledgeSearch(query.trim(), mode, controller.signal)
+        .then((result) => {
+          if (controller.signal.aborted) return;
+          setHits(result.hits);
+          setIndexState(result.index_state);
+        })
+        .catch((reason) => {
+          if (controller.signal.aborted) return;
+          setHits([]);
+          setError(reason instanceof Error ? reason.message : "检索未完成");
+          if (reason instanceof ApiError && reason.status === 401) onError(reason);
+        })
+        .finally(() => { if (!controller.signal.aborted) setLoading(false); });
+    }, 250);
+    return () => { window.clearTimeout(timer); controller.abort(); };
+  }, [query, mode, onError]);
+
+  async function ask() {
+    askController.current?.abort();
+    const controller = new AbortController();
+    askController.current = controller;
+    setAsking(true);
+    setAnswer(null);
+    try {
+      const result = await api.ask(query.trim(), controller.signal);
+      if (!controller.signal.aborted) setAnswer({ text: result.answer, citations: result.citations });
+    } catch (reason) {
+      if (!controller.signal.aborted) onError(reason);
+    } finally {
+      if (!controller.signal.aborted) setAsking(false);
+    }
+  }
+
+  const valid = query.trim().length > 0 && Array.from(query.trim()).length <= 200;
+  return <section className="knowledge-panel" aria-label="本班知识检索">
+    <div className="knowledge-search">
+      <label htmlFor="knowledge-query">检索本班知识片段</label>
+      <div className="knowledge-query-row">
+        <input id="knowledge-query" value={query} onChange={(event) => setQuery(event.target.value)} maxLength={200} placeholder="输入原词或用自然语言提问" />
+        <button className="primary" onClick={ask} disabled={!valid || asking}>{asking ? "回答中…" : "依据资料回答"}</button>
+      </div>
+      <div className="mode-switch" role="group" aria-label="检索模式">
+        {(["keyword", "vector", "hybrid"] as SearchMode[]).map((value) => <button key={value} className={mode === value ? "selected" : ""} onClick={() => setMode(value)} aria-pressed={mode === value}>{value === "keyword" ? "关键字" : value === "vector" ? "语义" : "混合"}</button>)}
+      </div>
+      <p className="search-explainer">关键字匹配原文；语义查找相近表述；混合融合两路排序。所有结果仅来自当前班级。</p>
+    </div>
+    {indexState === "building" && <p className="index-notice">本班材料正在建立索引，结果可能暂时不完整。</p>}
+    {indexState === "degraded" && <p className="index-notice warning">部分材料索引失败；可联系教师重建。</p>}
+    {answer && <article className="answer-card"><p className="eyebrow">依据资料回答</p><p>{answer.text}</p>{answer.citations.length > 0 && <div className="answer-citations">{answer.citations.map((hit, index) => <button key={hit.chunk_id} onClick={() => onOpen(hit)}>[{index + 1}] {hit.title} · 切片 {hit.chunk_index}</button>)}</div>}</article>}
+    {error && <p className="form-error" role="alert">{error}</p>}
+    {loading ? <p className="knowledge-state">正在检索本班资料…</p> : valid && !error && hits.length === 0 ? <p className="knowledge-state">资料中未找到相关内容</p> : null}
+    <div className="knowledge-results" aria-live="polite">
+      {hits.map((hit) => <article className="knowledge-hit" key={hit.chunk_id}>
+        <div className="hit-meta"><span>#{hit.rank} · 切片 {hit.chunk_index}</span><span>{hit.offset_basis === "original" ? "原文" : "预处理文本"}字符 {hit.start_offset}–{hit.end_offset}</span></div>
+        <h2>{hit.title}</h2><p className="hit-file">{hit.original_name}</p>
+        <blockquote>{hit.excerpt}</blockquote>
+        <button className="secondary" onClick={() => onOpen(hit)}>打开来源</button>
+      </article>)}
+    </div>
+  </section>;
+}
+
+function DetailDrawer({ item, citation, onClose, onDownload, onReindex }: { item: Material; citation: KnowledgeHit | null; onClose: () => void; onDownload: () => void; onReindex?: (strategy: ChunkStrategy) => Promise<void> }) {
   const isMarkdown = item.original_name.toLowerCase().endsWith(".md");
+  const [strategy, setStrategy] = useState<ChunkStrategy>({ mode: "auto" });
+  const [reindexBusy, setReindexBusy] = useState(false);
+  const [reindexError, setReindexError] = useState("");
+  const content = item.content || "";
+  const characters = Array.from(content);
+  const matchesCitation = citation?.offset_basis === "original" &&
+    characters.slice(citation.start_offset, citation.end_offset).join("") === citation.excerpt;
+
+  async function reindex() {
+    if (!onReindex) return;
+    setReindexBusy(true);
+    setReindexError("");
+    try { await onReindex(strategy.mode === "custom" ? { max_length: 800, overlap_percent: 10, separator: "newline", ...strategy } : strategy); }
+    catch (reason) { setReindexError(reason instanceof Error ? reason.message : "重建失败"); }
+    finally { setReindexBusy(false); }
+  }
   return (
     <div className="overlay" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
       <aside className="detail-drawer" role="dialog" aria-modal="true" aria-labelledby="detail-title">
@@ -360,12 +477,34 @@ function DetailDrawer({ item, onClose, onDownload }: { item: Material; onClose: 
           <span>{formatDate(item.created_at)}</span><span>{formatBytes(item.size_bytes)}</span><span>{item.original_name}</span>
         </div>
         <article className={`document-body ${isMarkdown ? "markdown-body" : "plain-body"}`}>
-          {isMarkdown ? <ReactMarkdown remarkPlugins={[remarkGfm]}>{item.content || ""}</ReactMarkdown> : <pre>{item.content}</pre>}
+          {citation && <p className="citation-note">来源：切片 {citation.chunk_index} · {citation.offset_basis === "original" ? "原文字符区间" : "预处理文本字符区间"} {citation.start_offset}–{citation.end_offset}</p>}
+          {citation?.offset_basis === "processed" && <blockquote className="processed-excerpt">{citation.excerpt}</blockquote>}
+          {matchesCitation ? <pre>{characters.slice(0, citation!.start_offset).join("")}<mark>{citation!.excerpt}</mark>{characters.slice(citation!.end_offset).join("")}</pre> : isMarkdown ? <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown> : <pre>{content}</pre>}
         </article>
-        <footer><button className="primary" onClick={onDownload}>下载原文件</button></footer>
+        <footer className="detail-footer"><button className="primary" onClick={onDownload}>下载原文件</button>{onReindex && <div className="reindex-controls"><StrategyFields value={strategy} onChange={setStrategy} /><button className="secondary" onClick={reindex} disabled={reindexBusy}>{reindexBusy ? "排队中…" : "按此策略重建索引"}</button>{reindexError && <span role="alert">{reindexError}</span>}</div>}</footer>
       </aside>
     </div>
   );
+}
+
+function StrategyFields({ value, onChange }: { value: ChunkStrategy; onChange: (value: ChunkStrategy) => void }) {
+  return <div className="strategy-fields">
+    <label>切分策略
+      <select value={value.mode} onChange={(event) => onChange({ mode: event.target.value as ChunkStrategy["mode"] })}>
+        <option value="auto">自动窗口 · 800 字 / 重叠 80 字</option>
+        <option value="custom">自定义分隔符</option>
+        <option value="hierarchy">Markdown 标题分章</option>
+      </select>
+    </label>
+    {value.mode === "custom" && <div className="strategy-custom">
+      <label>最大字数<input type="number" min={100} max={2000} value={value.max_length ?? 800} onChange={(event) => onChange({ ...value, max_length: Number(event.target.value), separator: value.separator ?? "newline" })} /></label>
+      <label>重叠百分比<input type="number" min={0} max={50} value={value.overlap_percent ?? 10} onChange={(event) => onChange({ ...value, overlap_percent: Number(event.target.value), separator: value.separator ?? "newline", max_length: value.max_length ?? 800 })} /></label>
+      <label>分隔符<select value={value.separator ?? "newline"} onChange={(event) => onChange({ ...value, separator: event.target.value as ChunkStrategy["separator"], max_length: value.max_length ?? 800 })}><option value="newline">换行</option><option value="blank-line">空行</option><option value="period">句号</option></select></label>
+      <label className="check-option"><input type="checkbox" checked={value.remove_urls ?? false} onChange={(event) => onChange({ ...value, remove_urls: event.target.checked, separator: value.separator ?? "newline", max_length: value.max_length ?? 800 })} />移除 URL</label>
+      <label className="check-option"><input type="checkbox" checked={value.remove_emails ?? false} onChange={(event) => onChange({ ...value, remove_emails: event.target.checked, separator: value.separator ?? "newline", max_length: value.max_length ?? 800 })} />移除邮箱</label>
+      <label className="check-option"><input type="checkbox" checked={value.collapse_whitespace ?? false} onChange={(event) => onChange({ ...value, collapse_whitespace: event.target.checked, separator: value.separator ?? "newline", max_length: value.max_length ?? 800 })} />合并连续空白</label>
+    </div>}
+  </div>;
 }
 
 function UploadDialog({ onClose, onUploaded, onError }: { onClose: () => void; onUploaded: () => void; onError: (reason: unknown) => void }) {
@@ -373,13 +512,14 @@ function UploadDialog({ onClose, onUploaded, onError }: { onClose: () => void; o
   const [title, setTitle] = useState("");
   const [progress, setProgress] = useState(0);
   const [busy, setBusy] = useState(false);
+  const [strategy, setStrategy] = useState<ChunkStrategy>({ mode: "auto" });
 
   async function submit(event: FormEvent) {
     event.preventDefault();
     if (!file) return;
     setBusy(true);
     try {
-      await uploadMaterial(file, title, setProgress);
+      await uploadMaterial(file, title, strategy.mode === "custom" ? { max_length: 800, overlap_percent: 10, separator: "newline", ...strategy } : strategy, setProgress);
       onUploaded();
     } catch (reason) {
       onError(reason);
@@ -400,6 +540,7 @@ function UploadDialog({ onClose, onUploaded, onError }: { onClose: () => void; o
           <small>{file ? formatBytes(file.size) : "文件正文会写入本班知识库"}</small>
         </label>
         <label>材料标题（可选）<input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="默认使用文件名" maxLength={255} /></label>
+        <div className="upload-strategy"><StrategyFields value={strategy} onChange={setStrategy} /></div>
         {busy && <div className="progress-block"><div><span>正在上传并入库</span><strong>{progress}%</strong></div><progress max="100" value={progress} /></div>}
         <div className="dialog-actions"><button type="button" className="secondary" onClick={onClose} disabled={busy}>取消</button><button className="primary" disabled={!file || busy}>{busy ? "处理中…" : "上传材料"}</button></div>
       </form>
@@ -437,4 +578,3 @@ function formatDate(value: string) {
 }
 
 export default App;
-

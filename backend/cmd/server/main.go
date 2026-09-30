@@ -13,6 +13,7 @@ import (
 	"campusclaw/internal/auth"
 	"campusclaw/internal/config"
 	appdb "campusclaw/internal/db"
+	"campusclaw/internal/knowledge"
 	"campusclaw/internal/materials"
 )
 
@@ -35,12 +36,27 @@ func main() {
 	if err := appdb.Seed(rootCtx, database, cfg); err != nil {
 		log.Fatalf("database seed error: %v", err)
 	}
+	knowledgeService := knowledge.New(database, cfg)
+	if err := knowledgeService.Backfill(rootCtx); err != nil {
+		log.Fatalf("knowledge backfill error: %v", err)
+	}
+	if len(os.Args) > 1 {
+		if len(os.Args) == 2 && os.Args[1] == "reindex-all" {
+			if err := knowledgeService.RebuildAll(rootCtx); err != nil {
+				log.Fatalf("reindex failed: %v", err)
+			}
+			log.Print("all current-version knowledge entries queued for reindex")
+			return
+		}
+		log.Fatalf("unknown command: %s", os.Args[1])
+	}
+	go knowledgeService.Run(rootCtx)
 
 	authenticator, err := auth.New(database, cfg.SessionSecret, cfg.SessionTTL, cfg.LoginMaxFailures, cfg.LoginLock)
 	if err != nil {
 		log.Fatalf("authentication setup error: %v", err)
 	}
-	materialHandler := materials.New(database, cfg.UploadDir, cfg.MaxUploadBytes)
+	materialHandler := materials.New(database, cfg.UploadDir, cfg.MaxUploadBytes, cfg.IndexVersion)
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
@@ -54,6 +70,9 @@ func main() {
 	mux.Handle("POST /api/materials", authenticator.Require(http.HandlerFunc(materialHandler.Upload)))
 	mux.Handle("GET /api/materials/{id}", authenticator.Require(http.HandlerFunc(materialHandler.Detail)))
 	mux.Handle("GET /api/materials/{id}/file", authenticator.Require(http.HandlerFunc(materialHandler.Download)))
+	mux.Handle("POST /api/materials/{id}/reindex", authenticator.Require(http.HandlerFunc(knowledgeService.ReindexHTTP)))
+	mux.Handle("GET /api/knowledge/search", authenticator.Require(http.HandlerFunc(knowledgeService.SearchHTTP)))
+	mux.Handle("POST /api/ask", authenticator.Require(http.HandlerFunc(knowledgeService.AskHTTP)))
 
 	server := &http.Server{
 		Addr:              cfg.APIAddr,

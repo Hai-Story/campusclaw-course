@@ -60,6 +60,47 @@ var schema = []string{
 		CONSTRAINT fk_knowledge_class FOREIGN KEY (class_id) REFERENCES classes(id),
 		INDEX idx_knowledge_class (class_id)
 	) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+	`CREATE TABLE IF NOT EXISTS knowledge_index_jobs (
+		id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+		entry_id BIGINT UNSIGNED NOT NULL,
+		class_id BIGINT UNSIGNED NOT NULL,
+		content_hash CHAR(64) NOT NULL,
+		index_version VARCHAR(128) NOT NULL,
+		strategy_json JSON NOT NULL,
+		status ENUM('pending','processing','ready','failed') NOT NULL DEFAULT 'pending',
+		attempts INT UNSIGNED NOT NULL DEFAULT 0,
+		leased_until DATETIME(6) NULL,
+		next_attempt_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+		last_error VARCHAR(255) NULL,
+		created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+		updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+		CONSTRAINT fk_index_job_entry FOREIGN KEY (entry_id) REFERENCES knowledge_entries(id) ON DELETE CASCADE,
+		CONSTRAINT fk_index_job_class FOREIGN KEY (class_id) REFERENCES classes(id),
+		UNIQUE KEY uq_index_job_entry_version (entry_id, index_version),
+		INDEX idx_index_job_work (status, next_attempt_at, leased_until),
+		INDEX idx_index_job_class (class_id, index_version, status)
+	) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+	`CREATE TABLE IF NOT EXISTS knowledge_chunks (
+		id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+		entry_id BIGINT UNSIGNED NOT NULL,
+		material_id BIGINT UNSIGNED NOT NULL,
+		class_id BIGINT UNSIGNED NOT NULL,
+		chunk_index INT UNSIGNED NOT NULL,
+		chunk_text TEXT NOT NULL,
+		start_offset INT UNSIGNED NOT NULL,
+		end_offset INT UNSIGNED NOT NULL,
+		offset_basis ENUM('original','processed') NOT NULL,
+		content_hash CHAR(64) NOT NULL,
+		index_version VARCHAR(128) NOT NULL,
+		index_status ENUM('pending','ready','failed') NOT NULL DEFAULT 'pending',
+		created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+		CONSTRAINT fk_chunk_entry FOREIGN KEY (entry_id) REFERENCES knowledge_entries(id) ON DELETE CASCADE,
+		CONSTRAINT fk_chunk_material FOREIGN KEY (material_id) REFERENCES materials(id) ON DELETE CASCADE,
+		CONSTRAINT fk_chunk_class FOREIGN KEY (class_id) REFERENCES classes(id),
+		UNIQUE KEY uq_chunk_entry_version_index (entry_id, index_version, chunk_index),
+		INDEX idx_chunk_class_status (class_id, index_version, index_status),
+		FULLTEXT INDEX ft_chunk_text (chunk_text) WITH PARSER ngram
+	) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
 }
 
 func Migrate(ctx context.Context, database *sql.DB) error {

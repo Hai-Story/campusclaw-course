@@ -2,8 +2,10 @@ package materials
 
 import (
 	"crypto/rand"
+	"crypto/sha256"
 	"database/sql"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -18,12 +20,14 @@ import (
 
 	"campusclaw/internal/auth"
 	"campusclaw/internal/httpx"
+	"campusclaw/internal/knowledge"
 )
 
 type Handler struct {
 	db             *sql.DB
 	uploadDir      string
 	maxUploadBytes int64
+	indexVersion   string
 }
 
 type material struct {
@@ -39,8 +43,12 @@ type material struct {
 	Content      string `json:"content,omitempty"`
 }
 
-func New(database *sql.DB, uploadDir string, maxUploadBytes int64) *Handler {
-	return &Handler{db: database, uploadDir: uploadDir, maxUploadBytes: maxUploadBytes}
+func New(database *sql.DB, uploadDir string, maxUploadBytes int64, indexVersion ...string) *Handler {
+	h := &Handler{db: database, uploadDir: uploadDir, maxUploadBytes: maxUploadBytes}
+	if len(indexVersion) > 0 {
+		h.indexVersion = indexVersion[0]
+	}
+	return h
 }
 
 func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
@@ -163,6 +171,18 @@ func (h *Handler) Upload(w http.ResponseWriter, r *http.Request) {
 		httpx.Error(w, http.StatusBadRequest, "标题不能为空且不得超过 255 个字符")
 		return
 	}
+	strategy := knowledge.Strategy{Mode: "auto"}
+	if raw := r.FormValue("strategy"); raw != "" {
+		if err := json.Unmarshal([]byte(raw), &strategy); err != nil {
+			httpx.Error(w, http.StatusBadRequest, "切分策略格式错误")
+			return
+		}
+	}
+	strategy, err = knowledge.ValidateStrategy(strategy)
+	if err != nil {
+		httpx.Error(w, http.StatusBadRequest, "切分策略参数无效")
+		return
+	}
 	storedName, err := generatedName(extension)
 	if err != nil {
 		httpx.Error(w, http.StatusInternalServerError, "文件保存失败")
@@ -216,11 +236,31 @@ func (h *Handler) Upload(w http.ResponseWriter, r *http.Request) {
 		httpx.Error(w, http.StatusInternalServerError, "材料入库失败")
 		return
 	}
-	_, err = tx.ExecContext(r.Context(), `INSERT INTO knowledge_entries (material_id, class_id, content, source)
+	entryResult, err := tx.ExecContext(r.Context(), `INSERT INTO knowledge_entries (material_id, class_id, content, source)
 		VALUES (?, ?, ?, ?)`, materialID, user.ClassID, string(content), originalName)
 	if err != nil {
 		httpx.Error(w, http.StatusInternalServerError, "材料入库失败")
 		return
+	}
+	if h.indexVersion != "" {
+		entryID, err := entryResult.LastInsertId()
+		if err != nil {
+			httpx.Error(w, http.StatusInternalServerError, "材料入库失败")
+			return
+		}
+		strategyJSON, err := json.Marshal(strategy)
+		if err != nil {
+			httpx.Error(w, http.StatusInternalServerError, "材料入库失败")
+			return
+		}
+		hash := sha256.Sum256(content)
+		_, err = tx.ExecContext(r.Context(), `INSERT INTO knowledge_index_jobs
+			(entry_id,class_id,content_hash,index_version,strategy_json,status)
+			VALUES (?,?,?,?,?,'pending')`, entryID, user.ClassID, hex.EncodeToString(hash[:]), h.indexVersion, string(strategyJSON))
+		if err != nil {
+			httpx.Error(w, http.StatusInternalServerError, "材料入库失败")
+			return
+		}
 	}
 	if err := tx.Commit(); err != nil {
 		httpx.Error(w, http.StatusInternalServerError, "材料入库失败")
