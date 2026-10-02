@@ -167,3 +167,37 @@ The web app MUST present search hits, citations and their source excerpts as non
 
 - **WHEN** a user searches the existing material list by title or body
 - **THEN** `/api/materials?q=...` retains its existing material-list behavior independently of knowledge search
+
+### Requirement: Knowledge-answer chatbot
+
+The web app MUST list a “知识问答” entry in the desktop left navigation and offer an equivalent mobile entry. Its main area MUST present consecutive user and assistant messages, a multiline composer, and separately openable sources for each answer. It MUST use the existing authenticated `/api/ask` API and the server-side gateway and model configuration supplied through `.env`. Ask responses MUST expose the class-scoped `index_state` alongside the answer and citations. The browser MUST NOT receive gateway credentials.
+
+#### Scenario: Consecutive questions
+
+- **WHEN** a logged-in user opens knowledge answering and sends two valid questions
+- **THEN** both user questions and their assistant answers remain visible with their respective citations
+- **AND** the second request includes at most the latest six completed user/assistant messages, each bounded to 1000 Unicode codepoints
+- **AND** each new question is limited to 200 Unicode codepoints and retrieval still uses only the latest question
+
+#### Scenario: Keyboard and Unicode input
+
+- **WHEN** the user enters a question in the multiline composer
+- **THEN** Enter sends, Shift+Enter inserts a newline, and IME composition never triggers sending
+- **AND** blank or overlong questions cannot be sent and the character count treats a supplementary Unicode character as one codepoint
+
+#### Scenario: Pending, failed and stopped requests
+
+- **WHEN** an answer is pending, fails, or is stopped by the user
+- **THEN** the interface shows its state and prevents duplicate submission while pending
+- **AND** failure or cancellation preserves the question and allows retrying the latest round without duplicating its user message or adding unfinished messages to history
+
+#### Scenario: Conversation lifecycle
+
+- **WHEN** the user switches away from knowledge answering, clears the conversation, logs out, or unloads the view
+- **THEN** any pending ask request is cancelled and a late response cannot overwrite or restore cleared messages
+- **AND** completed messages survive navigation within the current login, while clearing, logout and refresh discard the in-memory conversation
+
+#### Scenario: No evidence and delayed indexing
+
+- **WHEN** an ask response contains no evidence or reports a building or degraded class index
+- **THEN** the conversation displays the fixed no-evidence answer without fabricated sources and displays any returned index warning with that round
