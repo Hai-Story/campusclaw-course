@@ -47,6 +47,12 @@ export interface KnowledgeSearchResult {
 export interface AskResult {
   answer: string;
   citations: KnowledgeHit[];
+  index_state: IndexState;
+}
+
+export interface HistoryTurn {
+  role: "user" | "assistant";
+  content: string;
 }
 
 export interface ChunkStrategy {
@@ -140,8 +146,8 @@ export const api = {
     const params = new URLSearchParams({ q: query, mode });
     return request<KnowledgeSearchResult>(`/api/knowledge/search?${params}`, { signal });
   },
-  ask: (question: string, signal?: AbortSignal) => request<AskResult>("/api/ask", {
-    method: "POST", body: JSON.stringify({ question }), signal
+  ask: (question: string, history: HistoryTurn[] = [], signal?: AbortSignal) => request<AskResult>("/api/ask", {
+    method: "POST", body: JSON.stringify({ question, history }), signal
   }),
   reindex: (id: number, strategy: ChunkStrategy) => request<{ message: string }>(`/api/materials/${id}/reindex`, {
     method: "POST", body: JSON.stringify({ strategy })

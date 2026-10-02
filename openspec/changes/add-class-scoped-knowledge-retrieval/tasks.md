@@ -38,3 +38,20 @@
 - [ ] 5.4 Run Go tests/vet/build, frontend production build and `openspec validate add-class-scoped-knowledge-retrieval --strict`; record actual outcomes and any unavailable environment checks before marking implementation complete.
 - [x] 5.5 Verify `course-embedding` (2048 dimensions) and `course-chat` through the authenticated API; when chat omits inline markers, show labelled retrieved sources while rejecting out-of-range citations.
 - [x] 5.6 Verify deleting uploaded and seed materials removes their search/ask candidates and vector points without worker resurrection.
+
+## 6. Knowledge-answer chatbot refinement
+
+- [x] 6.1 Keep “知识问答” in desktop left and mobile navigation; implement consecutive chat messages, multiline input, Unicode limits, IME-safe keyboard submission and per-answer source buttons.
+- [x] 6.2 Send at most six completed history messages of 1000 codepoints each through authenticated `/api/ask`; return and display class index state while retaining `.env` server-only model configuration and evidence-gated answers.
+- [x] 6.3 Implement pending/stop/retry/clear states; preserve completed chats across navigation, cancel inactive/unmounted requests and ignore late responses without duplicate messages.
+- [x] 6.4 Verify history, no-evidence/index warnings, request failures, cancellation, sources, navigation, safe rendering, desktop/mobile and existing material/search behavior; run frontend tests/build, relevant backend checks and strict OpenSpec validation, and document actual environment limitations.
+
+### Chatbot validation record (2026-10-01)
+
+- Worktree branch: `l4-implement`. 本轮更新 proposal/design/spec 并实现 6.1–6.4，未依据本轮模拟验证勾选前面既有的完整 Compose 验收项；change 尚未归档。
+- `frontend`: `npm ci`、`npm test`（6 项测试）和 `npm run build` 均通过。
+- `backend`: 项目 `.tools` 中 Go 1.22.12 的 `go test -ldflags=-linkmode=external ./...`、`go vet ./...` 和 `CGO_ENABLED=0 GOOS=linux go build ./cmd/server` 均通过。普通内部链接测试在当前 macOS 报 `missing LC_UUID load command`，使用已有系统 clang 的外部链接后所有包通过；工具链和缓存均位于项目中。
+- `scripts/verify_chatbot.py`: 项目 `.venv` 内 Playwright、临时独立的 headless Chrome 上下文、16 次模拟 ask 请求全部通过。覆盖最近六条历史、200 个 Unicode 字符、中文输入法/换行、连续消息、每轮来源和原文高亮、无依据/索引提示、失败重试、停止后草稿不误发、清空/切换/登出后的迟到响应、刷新/重新登录清空聊天、安全 Markdown、材料搜索/三种检索/命令面板、深浅主题、390px 与 320px 手机宽度（发送按钮可见且无横向溢出）。截图在忽略目录 `output/playwright/`。
+- `openspec validate add-class-scoped-knowledge-retrieval --strict` 与 `git diff --check` 通过。
+- 当前 worktree 未复制 `.env`。只检查主项目 `.env` 变量名，使用 `docker compose --env-file <主项目 .env> config --quiet` 验证配置通过，未输出密钥或口令。Docker daemon 当前未运行，真实模型网关、MySQL、Qdrant 和 Compose 端到端联调未执行；模拟浏览器验收和本地网关单元测试不能替代此项。
+- Go 依赖直连下载超时后，确认 `127.0.0.1:7897` 代理可用，仅对验证命令设置 `HTTP_PROXY`/`HTTPS_PROXY` 重试。未修改全局代理、系统权限或生产部署。

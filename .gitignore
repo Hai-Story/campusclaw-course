@@ -7,3 +7,4 @@ frontend/dist/
 .venv/
 .DS_Store
 coverage/
+output/playwright/

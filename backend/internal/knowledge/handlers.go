@@ -97,7 +97,7 @@ func (s *Service) AskHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if len(result.Hits) == 0 {
-		httpx.JSON(w, http.StatusOK, map[string]any{"answer": NoEvidence, "citations": []Hit{}})
+		httpx.JSON(w, http.StatusOK, map[string]any{"answer": NoEvidence, "citations": []Hit{}, "index_state": result.IndexState})
 		return
 	}
 	answer, err := s.gateway.Answer(r.Context(), question, result.Hits, history)
@@ -110,7 +110,7 @@ func (s *Service) AskHTTP(w http.ResponseWriter, r *http.Request) {
 		httpx.Error(w, http.StatusBadGateway, "回答引用无效")
 		return
 	}
-	httpx.JSON(w, http.StatusOK, map[string]any{"answer": answer, "citations": result.Hits})
+	httpx.JSON(w, http.StatusOK, map[string]any{"answer": answer, "citations": result.Hits, "index_state": result.IndexState})
 }
 
 // Some compatible chat models omit inline citation markers despite receiving

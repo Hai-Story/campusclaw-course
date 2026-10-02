@@ -68,4 +68,22 @@ describe("Bearer API client", () => {
     expect(options.body).toBeInstanceOf(FormData);
     expect((options.headers as Headers).has("Content-Type")).toBe(false);
   });
+
+  it("sends chat history and an abort signal through the authenticated same-origin API", async () => {
+    saved.set("campus-access-token-v2", "chat-token");
+    const result = { answer: "回答 [1]", citations: [], index_state: "building" };
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify(result), { status: 200 }));
+    const { api } = await import("./api");
+    const controller = new AbortController();
+    const history = [{ role: "user" as const, content: "之前的问题" }, { role: "assistant" as const, content: "之前的回答" }];
+
+    expect(await api.ask("现在的问题", history, controller.signal)).toEqual(result);
+    const [path, options] = fetchMock.mock.calls[0];
+    expect(path).toBe("/api/ask");
+    expect(options.method).toBe("POST");
+    expect(options.signal).toBe(controller.signal);
+    expect(options.credentials).toBe("omit");
+    expect((options.headers as Headers).get("Authorization")).toBe("Bearer chat-token");
+    expect(JSON.parse(options.body)).toEqual({ question: "现在的问题", history });
+  });
 });

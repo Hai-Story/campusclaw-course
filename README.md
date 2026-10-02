@@ -36,6 +36,8 @@ docker compose ps
 
 模型名与嵌入维度由 `.env` 决定，仓库中的示例值只是占位符。网页分别提供“知识检索”和“知识问答”入口；检索中的“语义”模式调用嵌入模型，没有单独的浏览器 embedding 接口。
 
+桌面左侧的“知识问答”进入聊天界面，手机通过同名导航进入。可连续提问，每轮显示用户问题、助手回答和可打开原文的来源。输入支持 Enter 发送、Shift+Enter 换行及中文输入法，问题上限为 200 个 Unicode 字符。后续提问仅向后端发送最近六条已完成历史消息，每条最多 1000 字符；检索仍以当前问题和服务端班级为准。回答期间可以停止，失败或停止后可重试最后一题，也可清空对话。切换页面保留本次已完成聊天并停止待处理请求，清空、退出登录或刷新页面会丢弃聊天。对话没有写入浏览器持久存储。
+
 ## 预置账号
 
 口令是你在 `.env` 中填写的值；应用启动时只把 bcrypt 哈希写入数据库。
@@ -62,7 +64,7 @@ Token 使用 `SESSION_SECRET` 签名，有效期由 `SESSION_TTL_MINUTES` 决定
 
 `GET /api/knowledge/search?q=问题&mode=hybrid&limit=10` 需要 Bearer Token。`q` 为 1–200 个字符，`limit` 默认为 10、可设为 1–20；`mode` 可为 `keyword`、`vector` 或 `hybrid`（默认）。关键字模式只查 MySQL 的二元 ngram 全文索引；向量模式调用嵌入网关和 Qdrant，并剔除余弦相似度低于 0.35 的候选；混合模式以 RRF `k=60` 融合两路通过阈值的名次。结果包含 MySQL 切片摘录、材料 ID/标题、原文件名、切片序号、字符区间及偏移基准。请求中的 `class_id` 不参与授权。
 
-`POST /api/ask` 接收 `{"question":"..."}`，问题同样限 1–200 个字符，以本班混合检索的前四条切片作为依据。可选 `history` 最多六条；只接受 `user`、`assistant` 角色，每条最多 1000 字符。无命中时返回 `资料中未找到相关内容`、空 `citations`，不调用对话网关；有命中时返回带 `[1]` 等引用的简短回答。两接口均要求 Bearer Token，客户端不能提供 system 指令覆盖服务端提示。
+`POST /api/ask` 接收 `{"question":"..."}`，问题同样限 1–200 个字符，以本班混合检索的前四条切片作为依据。可选 `history` 最多六条；只接受 `user`、`assistant` 角色，每条最多 1000 字符。无命中时返回 `资料中未找到相关内容`、空 `citations`，不调用对话网关；有命中时返回带 `[1]` 等引用的简短回答。响应同时返回本班 `index_state`，聊天中可显示索引中或索引失败的提示。两接口均要求 Bearer Token，客户端不能提供 system 指令覆盖服务端提示。
 
 教师可在材料列表或详情中确认删除本班材料。`DELETE /api/materials/{id}` 成功返回 204；学生返回 403，跨班与不存在材料返回同形 404，索引处理中返回 409 以便稍后重试。删除会清理原文、私有文件、切片、索引任务和向量；预置材料的删除记录会阻止服务重启时重新播种。此操作不可撤销。
 
@@ -92,6 +94,20 @@ sh scripts/verify.sh
 检索的本地集成验收可使用 `scripts/mock_gateway.py`（仅测试，提供确定性向量和回答）及 `scripts/verify_knowledge.py`。将 Compose 的 `GATEWAY_BASE_URL` 指向可从 API 容器访问的模拟网关 `/v1`，并将 `EMBEDDING_DIMENSION` 设为模拟网关默认的 `8`（或与 `MOCK_EMBEDDING_DIMENSION` 一致）。运行验收脚本时设置 `BASE_URL`、`TEST_TEACHER_PASSWORD`、`TEST_STUDENT_A_PASSWORD`、`TEST_STUDENT_B_PASSWORD`；如模拟网关统计地址与默认的 `http://127.0.0.1:18765/stats` 不同，还需设置 `MOCK_GATEWAY_STATS`。脚本会上传测试材料并重建索引。模拟网关只验证链路、班级隔离与失败路径，不能衡量真实模型的语义质量。
 
 完整 Compose 验收应在填入真实、获准使用的网关配置后执行；本仓库不附带网关密钥。
+
+聊天界面的浏览器验收脚本为 `scripts/verify_chatbot.py`，只使用模拟 API、测试账号和测试 Token，不读取 `.env`、不调用真实网关，也不写入数据库。它检查连续聊天和历史上限、来源定位、无依据/索引提示、输入法与 Unicode、失败重试、停止/清空后迟到响应、页面切换、主题、手机布局及退出登录。安装 Playwright 时使用项目虚拟环境：
+
+```sh
+python3 -m venv .venv
+.venv/bin/python -m pip install playwright
+# 若已有 Chromium，可设置 PLAYWRIGHT_CHROMIUM_EXECUTABLE 指向其可执行文件；
+# 否则把浏览器也安装在项目目录内。
+PLAYWRIGHT_BROWSERS_PATH="$PWD/.tools/playwright" .venv/bin/python -m playwright install chromium
+# 在另一个终端运行：cd frontend && npm run dev -- --host 127.0.0.1 --port 5178
+PLAYWRIGHT_BROWSERS_PATH="$PWD/.tools/playwright" .venv/bin/python scripts/verify_chatbot.py
+```
+
+可用 `CHATBOT_BASE_URL` 覆盖验收地址，截图写入 `output/playwright/`。该模拟验收不能代替真实 `.env` 网关、MySQL 和 Qdrant 的 Compose 联调。
 
 ## 持久化与重置
 
