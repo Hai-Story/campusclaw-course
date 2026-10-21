@@ -1,4 +1,5 @@
 import { FormEvent, useCallback, useEffect, useState } from "react";
+import PromptTemplates from "./PromptTemplates";
 import SkillEditor from "./SkillEditor";
 import MCPSettings from "./MCPSettings";
 import { api, Material, TutorAgent, TutorSkill } from "./api";
@@ -17,6 +18,7 @@ export default function TutorSettings({ onError }: { onError: (error: unknown) =
     {loading && <p className="muted">正在读取本班配置…</p>}{error && <p className="form-error" role="alert">{error}</p>}{notice && <p className="settings-notice" role="status">{notice}</p>}
     <div className="settings-columns"><section className="settings-card"><p className="eyebrow">角色与资料</p><h2>智能体配置</h2>
       <label>选择编辑的助手<select aria-label="编辑助手" value={agentID || 0} disabled={busy} onChange={(e) => { const item = agents.find((a) => a.id === Number(e.target.value)); setAgentID(item?.id); setAgent(item || empty); setNotice(""); }}><option value={0}>新建助手</option>{agents.map((a) => <option value={a.id} key={a.id}>{a.name}{!a.enabled && "（停用）"}</option>)}</select></label>
+      <PromptTemplates onError={onError} onApply={prompt=>{if(!agent.prompt.trim()||confirm("替换当前角色提示词？保存助手后生效。"))setAgent({...agent,prompt});}} />
       <form onSubmit={agentSubmit}><label>助手名称<input required aria-label="助手名称" value={agent.name} onChange={(e) => setAgent({ ...agent, name: e.target.value })} placeholder="例如：数学学习助手" /></label>
         <label>角色提示词<textarea aria-label="角色提示词" rows={5} value={agent.prompt} onChange={(e) => setAgent({ ...agent, prompt: e.target.value })} placeholder="留空使用默认中文解题助手；最多 2000 字" /></label>
         <label className="check-row"><input type="checkbox" checked={agent.enabled} onChange={(e) => setAgent({ ...agent, enabled: e.target.checked })} />启用助手（停用只阻止新建会话）</label>

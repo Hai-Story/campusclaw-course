@@ -920,5 +920,55 @@
       "name",
       "description"
     ]
+  },
+  "PromptTemplateInput": {
+    "type": "object",
+    "required": [
+      "name",
+      "prompt"
+    ],
+    "properties": {
+      "name": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 64
+      },
+      "prompt": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 2000
+      }
+    }
+  },
+  "PromptTemplate": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "integer"
+      },
+      "class_id": {
+        "type": "integer"
+      },
+      "name": {
+        "type": "string"
+      },
+      "prompt": {
+        "type": "string"
+      },
+      "builtin": {
+        "type": "boolean"
+      }
+    }
+  },
+  "PromptTemplateList": {
+    "type": "object",
+    "properties": {
+      "templates": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/PromptTemplate"
+        }
+      }
+    }
   }
 }

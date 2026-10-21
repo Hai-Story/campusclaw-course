@@ -14,6 +14,13 @@ func migrateBuiltins(ctx context.Context, database *sql.DB) error {
  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`); err != nil {
 		return err
 	}
+	if _, err := database.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS tutor_prompt_templates (
+ id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,class_id BIGINT UNSIGNED NOT NULL,
+ name VARCHAR(64) NOT NULL,prompt TEXT NOT NULL,builtin BOOLEAN NOT NULL DEFAULT 0,
+ UNIQUE KEY uq_template_class_name(class_id,name),FOREIGN KEY(class_id) REFERENCES classes(id)
+ ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`); err != nil {
+		return err
+	}
 	for _, col := range []struct{ table, name string }{{"tutor_skills", "name"}, {"tutor_messages", "skill_name"}} {
 		var length int
 		if err := database.QueryRowContext(ctx, `SELECT CHARACTER_MAXIMUM_LENGTH FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name=? AND column_name=?`, col.table, col.name).Scan(&length); err != nil {
@@ -91,6 +98,9 @@ func SeedBuiltins(ctx context.Context, database *sql.DB) error {
 		if err = seedSkills(ctx, database, class); err != nil {
 			return err
 		}
+		if err = seedTemplates(ctx, database, class); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -106,6 +116,31 @@ func seedSkills(ctx context.Context, database *sql.DB, class uint64) error {
 				continue
 			}
 			result, err := tx.ExecContext(ctx, `INSERT INTO tutor_skills(class_id,name,trigger_text,subject_text,tools_json,description,source_text,enabled) VALUES(?,?,?,?,'["knowledge_search"]',?,?,1)`, class, skill.Name, skill.Trigger, skill.Subject, skill.Description, skill.Source())
+			if err != nil {
+				return nil, err
+			}
+			id, err := result.LastInsertId()
+			if err != nil {
+				return nil, err
+			}
+			ids = append(ids, uint64(id))
+		}
+		return ids, nil
+	})
+}
+
+func seedTemplates(ctx context.Context, database *sql.DB, class uint64) error {
+	return seedVersion(ctx, database, class, "templates-v1", func(tx *sql.Tx) ([]uint64, error) {
+		ids := []uint64{}
+		for _, item := range catalog.Templates {
+			var count int
+			if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM tutor_prompt_templates WHERE class_id=? AND name=?`, class, item.Name).Scan(&count); err != nil {
+				return nil, err
+			}
+			if count > 0 {
+				continue
+			}
+			result, err := tx.ExecContext(ctx, `INSERT INTO tutor_prompt_templates(class_id,name,prompt,builtin) VALUES(?,?,?,1)`, class, item.Name, item.Prompt)
 			if err != nil {
 				return nil, err
 			}

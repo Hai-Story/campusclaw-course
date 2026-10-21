@@ -39,6 +39,7 @@ func TestBuiltinsMigrationOnlyWidensExistingColumns(t *testing.T) {
 	for _, length := range []int{32, 64} {
 		database, mock, _ := sqlmock.New()
 		mock.ExpectExec("CREATE TABLE IF NOT EXISTS builtin_initializations").WillReturnResult(sqlmock.NewResult(0, 0))
+		mock.ExpectExec("CREATE TABLE IF NOT EXISTS tutor_prompt_templates").WillReturnResult(sqlmock.NewResult(0, 0))
 		for _, col := range []struct{ table, name string }{{"tutor_skills", "name"}, {"tutor_messages", "skill_name"}} {
 			mock.ExpectQuery("SELECT CHARACTER_MAXIMUM_LENGTH").WithArgs(col.table, col.name).WillReturnRows(sqlmock.NewRows([]string{"length"}).AddRow(length))
 			if length < 64 {

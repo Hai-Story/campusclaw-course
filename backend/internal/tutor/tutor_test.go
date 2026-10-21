@@ -93,7 +93,7 @@ func TestCitationFilter(t *testing.T) {
 }
 func TestAuthorizationBeforeDatabase(t *testing.T) {
 	svc := New(nil, nil)
-	for _, handler := range []http.HandlerFunc{svc.WriteSkill, svc.DeleteSkill, svc.WriteAgent} {
+	for _, handler := range []http.HandlerFunc{svc.WriteSkill, svc.DeleteSkill, svc.WriteAgent, svc.PreviewSkill, svc.ListTemplates, svc.WriteTemplate, svc.DeleteTemplate} {
 		for _, logged := range []bool{false, true} {
 			r := httptest.NewRequest("POST", "/", strings.NewReader("{}"))
 			if logged {
