@@ -180,12 +180,42 @@
         "type": "string",
         "maxLength": 8000,
         "description": "名称、适用条件、启用必填；空行下写说明，工具支持 knowledge_search 和 tool@server；保存时验证并批准本班当前发现版本。"
+      },
+      "routing": {
+        "type": "object",
+        "required": [
+          "trigger",
+          "subject",
+          "tools",
+          "enabled"
+        ],
+        "properties": {
+          "trigger": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "subject": {
+            "type": "string",
+            "maxLength": 32
+          },
+          "tools": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 16
+          },
+          "enabled": {
+            "type": "boolean"
+          }
+        }
       }
     },
     "required": [
       "source"
     ],
-    "description": "中文技能文件；工具支持 knowledge_search 和 tool@server，保存时校验本班连接及发现声明，并批准该版本。"
+    "description": "课程格式仅传 source；SKILL.md 须另传 routing。工具支持 knowledge_search 和 tool@server，保存时校验并批准本班当前声明。"
   },
   "Skill": {
     "type": "object",
@@ -199,7 +229,8 @@
         "minimum": 1
       },
       "name": {
-        "type": "string"
+        "type": "string",
+        "maxLength": 64
       },
       "trigger": {
         "type": "string"
@@ -607,7 +638,11 @@
       },
       "index_state": {
         "type": "string",
-        "enum": ["ready", "building", "degraded"]
+        "enum": [
+          "ready",
+          "building",
+          "degraded"
+        ]
       },
       "citations": {
         "type": "array",
@@ -862,5 +897,28 @@
         "type": "string"
       }
     }
+  },
+  "SkillPreview": {
+    "type": "object",
+    "properties": {
+      "format": {
+        "type": "string",
+        "enum": [
+          "course",
+          "skill-md"
+        ]
+      },
+      "name": {
+        "type": "string"
+      },
+      "description": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "format",
+      "name",
+      "description"
+    ]
   }
 }

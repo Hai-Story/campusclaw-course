@@ -693,6 +693,7 @@
             "type": "integer"
           },
           "name": {
+            "maxLength": 64,
             "type": "string"
           },
           "source": {
@@ -714,8 +715,38 @@
         "type": "object"
       },
       "SkillInput": {
-        "description": "中文技能文件；工具支持 knowledge_search 和 tool@server，保存时校验本班连接及发现声明，并批准该版本。",
+        "description": "课程格式仅传 source；SKILL.md 须另传 routing。工具支持 knowledge_search 和 tool@server，保存时校验并批准本班当前声明。",
         "properties": {
+          "routing": {
+            "properties": {
+              "enabled": {
+                "type": "boolean"
+              },
+              "subject": {
+                "maxLength": 32,
+                "type": "string"
+              },
+              "tools": {
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 16,
+                "type": "array"
+              },
+              "trigger": {
+                "maxLength": 120,
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "trigger",
+              "subject",
+              "tools",
+              "enabled"
+            ],
+            "type": "object"
+          },
           "source": {
             "description": "名称、适用条件、启用必填；空行下写说明，工具支持 knowledge_search 和 tool@server；保存时验证并批准本班当前发现版本。",
             "maxLength": 8000,
@@ -736,6 +767,29 @@
             "type": "array"
           }
         },
+        "type": "object"
+      },
+      "SkillPreview": {
+        "properties": {
+          "description": {
+            "type": "string"
+          },
+          "format": {
+            "enum": [
+              "course",
+              "skill-md"
+            ],
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "format",
+          "name",
+          "description"
+        ],
         "type": "object"
       },
       "Strategy": {
@@ -3167,6 +3221,70 @@
           }
         ],
         "summary": "从原文创建技能"
+      }
+    },
+    "/api/skills/preview": {
+      "post": {
+        "description": "仅教师可写。角色、班级来自服务端用户，客户端声明不参与授权。",
+        "operationId": "post_api_skills_preview",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SkillInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SkillPreview"
+                }
+              }
+            },
+            "description": "成功"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "输入、长度、格式或班内重名错误"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "缺少、无效或失效的 Bearer Token"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "学生不能执行教师管理操作"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "预览课程技能或 SKILL.md"
       }
     },
     "/api/skills/{id}": {

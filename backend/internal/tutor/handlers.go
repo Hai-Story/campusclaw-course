@@ -93,12 +93,13 @@ func (s *Service) WriteSkill(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var input struct {
-		Source string `json:"source"`
+		Source  string        `json:"source"`
+		Routing *SkillRouting `json:"routing"`
 	}
 	if !decode(w, r, &input) {
 		return
 	}
-	item, err := ParseSkill(input.Source)
+	item, err := ParseSkillInput(input.Source, input.Routing)
 	if err != nil {
 		httpx.Error(w, 400, err.Error())
 		return
@@ -322,4 +323,27 @@ func (s *Service) GetConversation(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	httpx.JSON(w, 200, map[string]any{"conversation": c, "messages": messages})
+}
+
+// @openapi {"method":"post","path":"/api/skills/preview","id":"post_api_skills_preview","summary":"预览课程技能或 SKILL.md","input":"SkillInput","output":"SkillPreview","success":200,"codes":[400,401,403],"teacher":true}
+func (s *Service) PreviewSkill(w http.ResponseWriter, r *http.Request) {
+	if _, ok := identity(w, r, true); !ok {
+		return
+	}
+	var input struct {
+		Source string `json:"source"`
+	}
+	if !decode(w, r, &input) {
+		return
+	}
+	item, err := ParseSkill(input.Source)
+	if err != nil {
+		httpx.Error(w, 400, err.Error())
+		return
+	}
+	format := "course"
+	if IsStandardSkill(input.Source) {
+		format = "skill-md"
+	}
+	httpx.JSON(w, 200, map[string]any{"format": format, "name": item.Name, "description": item.Description})
 }

@@ -417,3 +417,6 @@ textarea:focus-visible, select:focus-visible { outline:2px solid var(--red); out
 .mcp-audits { margin-top: 1.2rem; }
 .mcp-reference-review { margin: 1rem 0; min-width: 0; }
 @media (max-width: 600px) { .mcp-settings .settings-actions { align-items: stretch; } .mcp-settings .settings-actions > * { width: 100%; } }
+
+.skill-preview { margin-block: 16px; padding: 16px; border: 1px solid var(--border); border-radius: 12px; }
+.skill-preview pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 280px; overflow: auto; font: inherit; }

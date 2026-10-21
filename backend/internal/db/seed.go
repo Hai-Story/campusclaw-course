@@ -68,7 +68,7 @@ func Seed(ctx context.Context, database *sql.DB, cfg config.Config) error {
 			return err
 		}
 	}
-	return nil
+	return SeedBuiltins(ctx, database)
 }
 
 func seedOneMaterial(ctx context.Context, database *sql.DB, uploadDir string, item seedMaterial) error {

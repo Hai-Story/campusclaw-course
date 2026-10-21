@@ -96,6 +96,7 @@ func main() {
 	mux.Handle("GET /api/agents/{id}", authenticator.Require(http.HandlerFunc(tutorHandler.GetAgent)))
 	mux.Handle("PUT /api/agents/{id}", authenticator.Require(http.HandlerFunc(tutorHandler.WriteAgent)))
 	mux.Handle("GET /api/skills", authenticator.Require(http.HandlerFunc(tutorHandler.ListSkills)))
+	mux.Handle("POST /api/skills/preview", authenticator.Require(http.HandlerFunc(tutorHandler.PreviewSkill)))
 	mux.Handle("POST /api/skills", authenticator.Require(http.HandlerFunc(tutorHandler.WriteSkill)))
 	mux.Handle("GET /api/skills/{id}", authenticator.Require(http.HandlerFunc(tutorHandler.GetSkill)))
 	mux.Handle("PUT /api/skills/{id}", authenticator.Require(http.HandlerFunc(tutorHandler.WriteSkill)))

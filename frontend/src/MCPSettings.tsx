@@ -1,11 +1,11 @@
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { api, MCPServer, MCPTool, MCPAudit, MCPChange } from "./api";
 
-export function MCPReferencePicker({source}: {source: string}) {
+export function MCPReferencePicker({source, references}: {source: string; references?: string[]}) {
  const [tools, setTools] = useState<{ref: string; tool: MCPTool}[]>([]), [error, setError] = useState("");
  async function refresh() {try {const {servers} = await api.mcpServers(); const sets = await Promise.all(servers.filter(s => s.status === "connected").map(async s => (await api.mcpTools(s.id)).tools.map(tool => ({ref: `${tool.name}@${s.name}`, tool}))));setTools(sets.flat()); setError("");} catch {setError("工具清单读取失败，请先检查 MCP 连接。");}}
  useEffect(() => {void refresh();}, []);
- const refs = source.split(/\r?\n/).find(line => /^工具[:：]/.test(line))?.replace(/^工具[:：]/, "").split(/[,，、;；|]/).map(x => x.trim()).filter(x => x && x !== "knowledge_search") || [];
+ const refs = references?.filter(x => x && x !== "knowledge_search") ?? (source.split(/\r?\n/).find(line => /^工具[:：]/.test(line))?.replace(/^工具[:：]/, "").split(/[,，、;；|]/).map(x => x.trim()).filter(x => x && x !== "knowledge_search") || []);
  return <fieldset className="mcp-reference-review"><legend>保存前核对 MCP 工具声明</legend><button type="button" className="secondary" onClick={() => void refresh()}>刷新可用工具声明</button>{error && <p role="alert">{error}</p>}{!refs.length && <p className="muted">在工具字段中填写引用后可查看其完整说明与参数；保存技能表示批准该版本。</p>}{refs.map(ref => {const item = tools.find(x => x.ref === ref);return <details key={ref} open><summary>{ref}{!item && " · 未连接或未发现"}</summary>{item ? <><p>{item.tool.description}</p><pre>{JSON.stringify(item.tool.inputSchema, null, 2)}</pre><small>版本 {item.tool.hash.slice(0, 12)} · 重新保存技能以批准当前版本</small></> : <p className="form-error">请连接本班服务器、刷新清单后核对；无效引用无法保存。</p>}</details>;})}</fieldset>;
 }
 export default function MCPSettings({onError}: {onError: (error: unknown) => void}) {
