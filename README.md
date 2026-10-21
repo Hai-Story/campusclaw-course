@@ -1,196 +1,168 @@
-# CampusClaw · 教学 AI 应用与可追溯知识库
+# CampusClaw
 
-CampusClaw 是面向中小学的教研智能体，内置学习应用、提示词模板、可上传技能及 MCP 工具接入。本仓库提供账号或 Token 登录、教师/学生权限、班级隔离、`.txt` / `.md` 材料管理，以及本班知识切片的关键字、向量、混合检索和带出处的简短问答。前端为 React，API 为 Go；MySQL 保存材料与切片，Qdrant 保存向量。
+面向中小学课堂的 AI 学习助手与班级知识库，也是「互联网软件开发」课程的实践项目。
 
-身份认证、权限、知识入库、检索与问答的代码流程和实现边界，见 [身份认证与知识库问答实现方案](docs/AUTH-AND-KNOWLEDGE.md)。
+教师上传课程材料、配置助手，学生围绕本班资料提问。项目内置数学、语文和英语三个学习助手，支持带来源的回答、可连续追问的流式会话，以及通过 MCP 接入的教学工具。
 
-第五课已新增智能体配置、技能文件、私有会话、真实 SSE 流式链路、Swagger 与逐接口数据库验收；使用与验证方法见 [第五课实现说明](docs/LESSON-5.md)。下文单次问答的契约继续保留，新会话无资料时仍可回答。
+[快速开始](#快速开始) · [使用指南](#使用指南) · [开发与测试](#开发与测试) · [详细文档](#详细文档)
 
-第六课新增同仓 `mcp-server/`、教师本班服务器管理、发现与版本批准、技能工具引用、模型多轮调用和审计；使用方法见 [第六课实现说明](docs/LESSON-6.md)，本次验证状态见 [第六课验证记录](docs/LESSON-6-VALIDATION.md)。启动前还需设置独立的 `MCP_AUTH_TOKEN`，教师登记时输入同一值。
+## 能做什么
 
-## 五项 AI 能力
+- **管理班级资料**：上传、预览和下载 UTF-8 的 `.txt` / `.md` 文件，支持自动、自定义和按 Markdown 标题切分。教师可删除材料或重建索引。
+- **检索并引用原文**：支持关键词、向量和混合检索。回答中的引用能定位到材料及切片，方便回到原文核对。
+- **使用学科助手**：数学解题、语文阅读、英语学习三个应用开箱可选。会话支持流式输出、连续追问、停止生成和刷新后恢复。
+- **调整教学方式**：教师可以复制提示词模板、导入单文件 `SKILL.md`，为助手设置角色、技能和材料范围。
+- **接入教学工具**：自带 MCP 示例服务，提供公式步骤提示与单位换算方向；工具需经过白名单、发现和版本批准，调用过程可查看、可审计。
 
-| 能力 | 入口与行为 |
-| --- | --- |
-| 内置多个 AI 应用 | “解题会话”优先展示数学解题助手、语文阅读助手、英语学习助手，点击卡片直接创建会话。教师可新增或调整本班助手。 |
-| 提示词模板 | “助手配置 → 提示词模板库”提供三个只读内置模板，可复制为本班自定义模板并创建、编辑、删除。预览后应用到角色提示词，保存助手生效。 |
-| 知识库检索 | “知识检索”支持关键词、向量、混合检索；助手配置可绑定本班材料，回答携带材料及切片引用。 |
-| 内置和上传 Skill | 预置数学解题引导、语文阅读分析、英语学习指导；教师可导入课程 `.txt/.md` 或标准单文件 `SKILL.md`，预览、编辑、启停、删除并绑定助手。 |
-| 外部工具与 MCP | “助手配置 → 本班工具服务”登记、连接并发现获准的 HTTP MCP 工具，通过技能批准并参与模型多轮调用，保存调用记录和审计。 |
+材料和助手按班级隔离，会话仅本人可见。教师可以管理本班资源，但不能查看学生的私有会话。网页适配桌面和手机，并提供深浅两种主题。
 
-启动时会对所有现有班级初始化默认技能、模板和应用；以后新增的班级在下一次启动时补齐。初始化有独立班级版本记录，重复启动不覆盖教师修改、不重新启用停用助手、不恢复已删除技能。同名用户对象保持原样，不自动修改其绑定。
+## 快速开始
 
-默认应用不绑定材料或外部服务，无材料也能正常对话，此时没有资料引用。默认技能分别按标题中的“数学”“语文”“英语”筛选已绑定材料，可由教师调整资料范围。详细步骤见 [五项能力操作说明](docs/AI-CAPABILITIES.md)，本轮实际结果见 [验证记录](docs/AI-CAPABILITIES-VALIDATION.md)。
+需要 Docker Desktop（或 Docker Engine 与 Compose 插件），以及可用的模型网关。网关需兼容 OpenAI 的 `/embeddings` 和 `/chat/completions` 接口；解题会话需要 SSE 流式输出，MCP 调用还需要模型支持工具调用。
 
-### 提示词模板
-
-教师选择模板可预览正文，点击“应用到角色提示词”；替换已有提示词前需要确认，再点击“保存助手”。应用模板只复制正文，后续修改或删除模板不会影响已经保存的助手。
-
-模板管理接口为教师专用：`GET/POST /api/prompt-templates`、`PUT/DELETE /api/prompt-templates/{id}`。自定义模板按班级隔离，内置模板只读；本期采用固定文本，不支持变量填充。
-
-### 标准 SKILL.md 导入
-
-例如创建以下 UTF-8 文件：
-
-```markdown
----
-name: math-step-guide
-description: 检查数学解题步骤，提供下一步提示。
----
-先判断学生已经写出的步骤，指出错误与检查方向，鼓励学生自行继续推导。
-使用提供的资料时准确标注引用，不编造来源。
-```
-
-教师在“技能文件”选择文件，查看解析预览，再填写触发关键词（例如“方程，移项”）、资料标题范围、工具引用及启用状态。保存后勾选绑定该技能的助手并保存助手。编辑原文后应重新预览；文件的原始正文会完整保留，触发与工具配置单独保存。
-
-- `name`、`description` 与 Markdown 正文不能为空；标准技能名称最多 64 字，文件总计最多 8000 个 Unicode 字符。标准正文不受旧课程格式 2000 字说明限制。
-- 中文课程格式继续兼容：名称最多 32 字、说明最多 2000 字；原有仅提交 `source` 的 API 调用保留。
-- 标准格式创建/修改使用 `source` 加 `routing: {trigger, subject, tools, enabled}`；`POST /api/skills/preview` 供教师预览，不写入数据库。
-- 触发关键词沿用现有匹配机制。文件中的 `allowed-tools` 等附加元数据不授予任何工具权限。
-- 只导入单个指令文件，不加载附属文件、不安装依赖、不执行上传脚本，不支持 ZIP 技能包。
-
-### MCP 接入与范围
-
-部署者先允许服务根地址及只读工具（`MCP_ALLOWED_BASE_URLS`、`MCP_ALLOWED_TOOLS`），教师再登记独立 MCP Bearer 令牌，点击“连接并发现”。同仓默认服务提供 `formula_hint` 和 `unit_convert`；在技能工具字段填写 `工具名@服务器引用名`，核对声明后保存，表示批准当前版本。
-
-技能绑定助手且问题匹配时，模型自行选择是否调用；界面显示轮次与成功、出错、被拒状态，刷新后可以回放。重新发现引起声明变化时，旧批准失效，须重新核对并保存相关技能。默认初始化不会连接或批准外部服务。
-
-当前兼容 MCP `2025-06-18` 的 HTTP 工具子集，不支持 stdio、资源、提示模板、会话恢复或通用写入工具。应用登录 Token 与 MCP 令牌用途独立。
-
-## 范围
-
-- 教师：查看、搜索、下载、上传和删除本班材料，并可重新建立材料索引；删除预置材料后重启也不会恢复。
-- 学生：查看、搜索和下载本班材料；上传接口由服务端返回 403。
-- 班级：只取 Token 对应用户在服务端数据库中的 `class_id`。列表强制按班过滤；详情和文件先取行再核对归属。
-- 跨班：与不存在资源返回完全相同的 404，避免泄露资源是否存在。
-- 知识库：MySQL 保留原文与切片；Qdrant 只保存向量和标识。检索及问答都由 Token 对应的班级限定，结果可返回材料、切片序号与字符区间。
-
-## 不做的内容
-
-本版本不包含作业和成绩、超级管理员、OAuth/SSO、注册改密、PDF/Word/图片解析、材料在线编辑、Kubernetes、CI、公网域名、HTTPS 或多副本高可用。
-
-这是单实例 Compose 版本。登录失败限流保存在 API 进程内；在引入共享限流器和相应规约之前不要横向扩容 API。
-
-## 启动
-
-需要 Docker Desktop（含 `docker compose`）。仓库不会提供可用密钥或口令。
+### 1. 获取代码
 
 ```sh
+git clone https://github.com/Hai-Story/campusclaw-course.git
+cd campusclaw-course
 cp .env.example .env
-# 编辑 .env：替换 DB_PASSWORD、SESSION_SECRET、三个 SEED_*_PASSWORD，
-# 再设置可信模型网关的 URL、密钥、模型名及真实嵌入维度。
+```
+
+已有本地配置时保留原 `.env`，按 [.env.example](.env.example) 补齐缺少的字段即可。
+
+### 2. 填写配置
+
+编辑 `.env`，至少替换以下示例值：
+
+| 配置 | 填写内容 |
+| --- | --- |
+| `DB_PASSWORD` | 本地数据库密码 |
+| `SESSION_SECRET` | 至少 32 个随机字符，用于签名登录 Token |
+| `SEED_TEACHER_A_PASSWORD` | A 班教师的初始密码 |
+| `SEED_STUDENT_A1_PASSWORD`、`SEED_STUDENT_B1_PASSWORD` | 两个学生账号的初始密码 |
+| `GATEWAY_BASE_URL`、`GATEWAY_API_KEY` | 模型网关地址（通常以 `/v1` 结尾）与密钥 |
+| `CHAT_MODEL` | 网关支持的对话模型名 |
+| `EMBEDDING_MODEL`、`EMBEDDING_DIMENSION` | 嵌入模型名及其实际输出维度，二者必须匹配 |
+| `MCP_AUTH_TOKEN` | 独立的 MCP 服务令牌，不能与应用登录 Token 混用 |
+
+其余配置可先保留示例值。默认网页端口为 `8080`，如有冲突可修改 `WEB_PORT`。Compose 中 API 使用 `:8081`，与 Nginx 上游和健康检查保持一致。
+
+仓库不附带可用密钥。嵌入请求会将材料切片发送到配置的网关，对话请求会发送问题、相关历史及命中的资料；请使用获准处理这些内容的服务，并勿提交 `.env`。
+
+### 3. 启动并登录
+
+```sh
 docker compose up --build -d
 docker compose ps
 ```
 
-打开 [http://localhost:8080](http://localhost:8080)。存活检查地址为 [http://localhost:8080/health](http://localhost:8080/health)。若 8080 已占用，修改 `.env` 的 `WEB_PORT`。
+首次启动需要拉取镜像、构建应用并等待 MySQL 就绪。完成后打开：
 
-首次启动 MySQL 可能需要几十秒；API 除了等待 Compose 健康状态，还会在进程内重试数据库连接。数据库 3306、API 8081、Qdrant 6333 与上传目录都不会映射到宿主机。API 启动后幂等补录旧材料的索引任务，后台逐条建立切片与向量。
+- 网页：[localhost:8080](http://localhost:8080)
+- API 文档：[Swagger UI](http://localhost:8080/swagger/)
+- 存活检查：[health](http://localhost:8080/health)
 
-模型网关使用 OpenAI 兼容 `/embeddings` 与 `/chat/completions` 接口。`GATEWAY_BASE_URL` 填到 `/v1`，`GATEWAY_API_KEY` 仅由 Go API 持有。`EMBEDDING_MODEL` 和 `EMBEDDING_DIMENSION` 必须与网关实际输出一致；更换模型或维度后需重建向量索引。**切片正文会发送到所配置的嵌入网关；仅在问答命中本班切片时，这些切片才会发送到对话网关。**部署前应确认网关的数据处理边界。示例文件只含占位值，不是可用凭据。
+如修改了 `WEB_PORT`，请相应替换地址中的端口。启动失败时可用 `docker compose logs --tail=100 api` 查看原因。
 
-模型名与嵌入维度由 `.env` 决定，仓库中的示例值只是占位符。网页分别提供“知识检索”和“知识问答”入口；检索中的“语义”模式调用嵌入模型，没有单独的浏览器 embedding 接口。
+| 账号 | 身份 | 初始密码对应配置 |
+| --- | --- | --- |
+| `teacher_a` | A 班教师 | `SEED_TEACHER_A_PASSWORD` |
+| `student_a1` | A 班学生 | `SEED_STUDENT_A1_PASSWORD` |
+| `student_b1` | B 班学生 | `SEED_STUDENT_B1_PASSWORD` |
 
-桌面左侧的“知识问答”进入聊天界面，手机通过同名导航进入。可连续提问，每轮显示用户问题、助手回答和可打开原文的来源。输入支持 Enter 发送、Shift+Enter 换行及中文输入法，问题上限为 200 个 Unicode 字符。后续提问仅向后端发送最近六条已完成历史消息，每条最多 1000 字符；检索仍以当前问题和服务端班级为准。回答期间可以停止，失败或停止后可重试最后一题，也可清空对话。切换页面保留本次已完成聊天并停止待处理请求，清空、退出登录或刷新页面会丢弃聊天。对话没有写入浏览器持久存储。
+首次启动会创建账号、两班示例材料及默认助手。重复启动不会覆盖教师修改，也不会恢复已删除的默认技能。已有账号密码不会随 `.env` 中的初始密码修改而重置。
 
-## 预置账号
+## 使用指南
 
-口令是你在 `.env` 中填写的值；应用启动时只把 bcrypt 哈希写入数据库。
+### 先试一次对话
 
-账号密码登录成功后，`POST /api/login` 返回 `token`、`token_type: "Bearer"` 和 `expires_in`，不设置会话 Cookie。网页会把 Token 保存到当前标签的 `sessionStorage`，后续材料、知识检索、上传、下载等请求都发送 `Authorization: Bearer <token>`，并禁用请求携带 Cookie。也可以在登录页选择「Token 登录」，粘贴本应用签发且尚未过期的 Token；服务端会先通过 `/api/me` 校验身份。Token 不包含角色和班级授权信息，服务端仍以数据库中的当前用户信息为准。
+用 `student_a1` 登录，进入「解题会话」，点击「数学解题助手」，输入一道题和你已经写出的步骤。默认助手即使没有绑定材料也能对话，此时不会显示资料引用。
 
-脚本或 API 客户端可在登录响应中获取 `token`，然后按下例访问受保护接口（请替换占位符，不要把真实 Token 提交到仓库）：
+要让回答用上课程资料：
 
-```sh
-curl -H 'Authorization: Bearer <token>' http://localhost:8080/api/materials
-```
+1. 用 `teacher_a` 登录，在「材料库」上传 `.txt` 或 `.md`，等待索引就绪。
+2. 在「助手配置」选择助手，勾选本班材料并保存。
+3. 切回学生账号，在「解题会话」提问；点击回答中的引用可查看原文。
 
-Token 使用 `SESSION_SECRET` 签名，有效期由 `SESSION_TTL_MINUTES` 决定。退出登录会撤销对应数据库会话，因此同一 Token 随即失效。受保护接口只接受 Bearer Token；旧版 Cookie 不再能登录。
+默认技能按材料标题中的「数学」「语文」「英语」筛选资料。上传时可在标题中写明学科，也可以由教师调整技能的资料范围。修改助手配置后，已有会话的下一轮就会使用新配置。
 
-| 账号 | 角色 | 班级 | 权限 |
+### 知识问答和解题会话有什么区别
+
+| 入口 | 适合的用途 | 没有匹配资料时 | 历史记录 |
 | --- | --- | --- | --- |
-| `teacher_a` | 教师 | A 班 | 上传、查看、搜索、下载、删除、重建索引 |
-| `student_a1` | 学生 | A 班 | 查看、搜索、下载 |
-| `student_b1` | 学生 | B 班 | 查看、搜索、下载 |
+| 知识检索 | 查找本班材料中的相关片段 | 显示空结果 | 不创建会话 |
+| 知识问答 | 根据本班资料给出简短回答 | 返回「资料中未找到相关内容」，不调用对话模型 | 保留在当前页面运行期间，刷新后清空 |
+| 解题会话 | 选择助手，连续提问和追问 | 仍可由模型回答，不附资料引用 | 保存到服务端，可从「我的会话」恢复 |
 
-两班各有一份标题可区分的种子材料。初始化幂等，重启不会复制种子，也不会覆盖教师上传的内容。
+教师可以上传和管理材料；学生可以查看、检索、下载并使用助手。跨班资源与不存在的资源均返回 404。
 
-## 知识检索与溯源
+### 配置模板、技能和 MCP
 
-`GET /api/knowledge/search?q=问题&mode=hybrid&limit=10` 需要 Bearer Token。`q` 为 1–200 个字符，`limit` 默认为 10、可设为 1–20；`mode` 可为 `keyword`、`vector` 或 `hybrid`（默认）。关键字模式只查 MySQL 的二元 ngram 全文索引；向量模式调用嵌入网关和 Qdrant，并剔除余弦相似度低于 0.35 的候选；混合模式以 RRF `k=60` 融合两路通过阈值的名次。结果包含 MySQL 切片摘录、材料 ID/标题、原文件名、切片序号、字符区间及偏移基准。请求中的 `class_id` 不参与授权。
+**提示词模板**用于快速填写助手的角色提示词。内置模板只读，可以复制为本班模板后编辑；应用模板后还需保存助手。模板正文按副本保存，后续修改模板不会改写已有助手。
 
-`POST /api/ask` 接收 `{"question":"..."}`，问题同样限 1–200 个字符，以本班混合检索的前四条切片作为依据。可选 `history` 最多六条；只接受 `user`、`assistant` 角色，每条最多 1000 字符。无命中时返回 `资料中未找到相关内容`、空 `citations`，不调用对话网关；有命中时返回带 `[1]` 等引用的简短回答。响应同时返回本班 `index_state`，聊天中可显示索引中或索引失败的提示。两接口均要求 Bearer Token，客户端不能提供 system 指令覆盖服务端提示。
+**技能文件**用于补充特定问题的处理指令。教师可导入课程格式的 `.txt` / `.md`，也可导入带 `name`、`description` 和正文的标准 `SKILL.md`。预览后设置触发关键词、资料范围和工具引用，再绑定到助手。当前只读取单个指令文件，不执行脚本或安装依赖，也不支持 ZIP 技能包。
 
-教师可在材料列表或详情中确认删除本班材料。`DELETE /api/materials/{id}` 成功返回 204；学生返回 403，跨班与不存在材料返回同形 404，索引处理中返回 409 以便稍后重试。删除会清理原文、私有文件、切片、索引任务和向量；预置材料的删除记录会阻止服务重启时重新播种。此操作不可撤销。
+**MCP 工具**需要单独连接。使用同仓示例服务时，在「助手配置 → 本班工具服务」登记引用名 `campus-tools`、地址 `http://mcp-demo:8090`，并输入 `.env` 中设置的 `MCP_AUTH_TOKEN`。连接并发现后，核对工具声明，在技能中填写 `formula_hint@campus-tools` 或 `unit_convert@campus-tools`，保存批准，再绑定助手。
 
-教师上传可在表单中选择切分策略：`auto` 为最多 800 个 Unicode 字符、重叠 80 字；`custom` 支持 100–2000 字、0–50% 重叠、换行/空行/句号分隔和可选预处理；`hierarchy` 按 Markdown 一级至三级标题分章，较长章节仍会继续切分。原文始终保留。预处理过的切片偏移相对于处理后文本，界面会明确标注。教师也可在材料详情中按新策略请求 `POST /api/materials/{id}/reindex`，成功返回 202，表示索引任务已排队；跨班材料与未知 ID 同形 404。
+其他 MCP 服务需要部署者先配置 `MCP_ALLOWED_BASE_URLS` 和 `MCP_ALLOWED_TOOLS`。模型是否调用工具取决于命中的技能和当前问题；工具声明变更后需要重新批准。完整步骤见 [AI 能力操作说明](docs/AI-CAPABILITIES.md) 和 [MCP 接入说明](docs/LESSON-6.md)。
 
-检索响应的 `index_state` 为 `building`、`degraded` 或 `ready`。检索正常但无依据时是 HTTP 200、空 `hits` 和固定文案；Qdrant 或嵌入网关故障时，向量/混合模式返回 503，关键字模式仍可读取已就绪切片。现有 `/api/materials?q=...` 始终保留材料列表搜索语义。
+## 项目结构
 
-## 验收
+前端使用 React、TypeScript 和 Vite；后端使用 Go 标准库 HTTP 服务。MySQL 保存用户、材料原文、切片和会话，Qdrant 保存向量及标识，模型请求由 Go API 发起。
 
-本地验证需要 Go 1.22、Node.js/npm 和 OpenSpec CLI。先执行测试、前端构建与规约校验：
-
-```sh
-cd backend && go test ./...
-cd ../frontend && npm ci && npm test && npm run build
-cd .. && openspec validate add-auth-rbac-class-knowledge --strict
-openspec validate add-class-scoped-knowledge-retrieval --strict
+```text
+浏览器 → Nginx → Go API → MySQL / Qdrant
+                       → 模型网关
+                       → MCP 服务
 ```
 
-Compose 启动后运行关键行为验收：
+Compose 默认只发布网页端口，数据库、API、Qdrant 和 MCP 服务留在容器网络内。上传文件存放在独立数据卷中，下载必须经过 API 鉴权。
 
-```sh
-sh scripts/verify.sh
+```text
+frontend/     React 页面、样式与前端测试
+backend/      Go API、鉴权、知识检索、助手与 OpenAPI 文档
+mcp-server/   独立的教学工具示例服务
+apitest/      隔离环境、逐接口数据库验收与浏览器脚本
+scripts/      鉴权、知识库、聊天验证及文档维护脚本
+docs/         功能说明、实现细节和各轮验证记录
+openspec/     需求、设计、规格与任务记录
 ```
 
-脚本验证公开 health、未登录及旧 Cookie 401、登录响应不设置 Cookie、Bearer 身份查询、篡改 Token 401、教师上传 201、学生上传 403、跨班 404、登出后 Token 401，并比较跨班与不存在资源的响应体完全一致。脚本会向 A 班上传一份验收材料，持久卷中会保留该数据。
+## 开发与测试
 
-检索的本地集成验收可使用 `scripts/mock_gateway.py`（仅测试，提供确定性向量和回答）及 `scripts/verify_knowledge.py`。将 Compose 的 `GATEWAY_BASE_URL` 指向可从 API 容器访问的模拟网关 `/v1`，并将 `EMBEDDING_DIMENSION` 设为模拟网关默认的 `8`（或与 `MOCK_EMBEDDING_DIMENSION` 一致）。运行验收脚本时设置 `BASE_URL`、`TEST_TEACHER_PASSWORD`、`TEST_STUDENT_A_PASSWORD`、`TEST_STUDENT_B_PASSWORD`；如模拟网关统计地址与默认的 `http://127.0.0.1:18765/stats` 不同，还需设置 `MOCK_GATEWAY_STATS`。脚本会上传测试材料并重建索引。模拟网关只验证链路、班级隔离与失败路径，不能衡量真实模型的语义质量。
-
-完整 Compose 验收应在填入真实、获准使用的网关配置后执行；本仓库不附带网关密钥。
-
-聊天界面的浏览器验收脚本为 `scripts/verify_chatbot.py`，只使用模拟 API、测试账号和测试 Token，不读取 `.env`、不调用真实网关，也不写入数据库。它检查连续聊天和历史上限、来源定位、无依据/索引提示、输入法与 Unicode、失败重试、停止/清空后迟到响应、页面切换、主题、手机布局及退出登录。安装 Playwright 时使用项目虚拟环境：
+本地检查需要 Go 1.22 或更新版本，以及 Node.js/npm；前端 Docker 构建使用 Node.js 22。以下命令从仓库根目录执行：
 
 ```sh
-python3 -m venv .venv
-.venv/bin/python -m pip install playwright
-# 若已有 Chromium，可设置 PLAYWRIGHT_CHROMIUM_EXECUTABLE 指向其可执行文件；
-# 否则把浏览器也安装在项目目录内。
-PLAYWRIGHT_BROWSERS_PATH="$PWD/.tools/playwright" .venv/bin/python -m playwright install chromium
-# 在另一个终端运行：cd frontend && npm run dev -- --host 127.0.0.1 --port 5178
-PLAYWRIGHT_BROWSERS_PATH="$PWD/.tools/playwright" .venv/bin/python scripts/verify_chatbot.py
+(cd backend && go test ./...)
+(cd mcp-server && go test ./...)
+(cd frontend && npm ci && npm test && npm run build)
+(cd backend && go run ./cmd/openapi -check)
 ```
 
-可用 `CHATBOT_BASE_URL` 覆盖验收地址，截图写入 `output/playwright/`。该模拟验收不能代替真实 `.env` 网关、MySQL 和 Qdrant 的 Compose 联调。
+前端开发服务器通过 `cd frontend && npm run dev` 启动，默认将 `/api` 等请求代理到本机 `8081`。需要自行启动本地 API；默认 Compose 不向宿主机发布这个端口。
 
-## 本轮功能验收
-
-2026-10-21 已完成：后端全量竞态测试、独立 MCP 服务竞态测试、前端 12 项测试及构建、OpenAPI 校验、全部 5 个 OpenSpec 变更严格校验、41/41 逐接口数据库验收、重复迁移指纹检查，以及新旧真实浏览器端到端验收。
-
-浏览器已验证模板复制、覆盖确认与独立快照、两种技能格式导入、MCP 发现/批准/两轮调用/刷新回放、应用卡片、移动深色主题、原有材料引用和 Swagger Bearer 试调。隔离环境使用真实 MySQL、Qdrant 和独立 MCP 服务；模型和嵌入来自确定性模拟网关，**真实模型的技能遵循、工具选择与回答质量仍待验证**。
-
-启动独立测试环境后可运行：
+需要验证 API、数据库和完整对话链路时，可启动独立验收环境：
 
 ```sh
-sh apitest/with_lesson6_env.sh .venv/bin/python apitest/run_all.py
-sh apitest/with_lesson6_env.sh .venv/bin/python apitest/verify_builtin_apps.py
-sh apitest/with_lesson6_env.sh .venv/bin/python apitest/verify_builtin_knowledge.py
-sh apitest/with_lesson6_env.sh .venv/bin/python apitest/verify_standard_mcp.py
-sh apitest/with_lesson6_env.sh .venv/bin/python apitest/browser_capabilities.py
-sh apitest/with_lesson6_env.sh .venv/bin/python apitest/browser_check.py
+sh apitest/run_lesson6.sh
 ```
 
-这些脚本只允许显式授权的本机 `campusclaw_test_` 数据库，会写入测试数据。报告、截图和指纹位于 Git 忽略的 `apitest/reports/`。本次使用缓存基础镜像构建最新程序完成 Docker 验收；不代表生产 Dockerfile 的远程镜像拉取或生产部署已通过。
+脚本使用独立的 `campusclaw-lesson6` Compose 项目和测试数据卷，不读取应用 `.env`；会生成测试凭据、在项目 `.venv` 安装依赖并写入测试数据。报告位于 `apitest/reports/`。浏览器验收与缓存镜像方式见 [MCP 接入说明](docs/LESSON-6.md#验证)。
 
-## 持久化与重置
+隔离验收使用真实 MySQL、Qdrant、MCP 服务和模拟模型。它能检查接口、权限与调用流程，真实模型的回答质量和工具选择仍需单独验证。已有测试结果见 [AI 能力验证记录](docs/AI-CAPABILITIES-VALIDATION.md)。
+
+修改 API 后请重新生成 OpenAPI 并运行检查；修改需求或规格时，使用 OpenSpec CLI 执行 `openspec validate --all --strict`。
+
+## 数据维护
+
+停止、重新启动服务会保留数据库、上传文件和向量数据：
 
 ```sh
 docker compose down
 docker compose up -d
 ```
 
-上面的操作会保留数据库、上传文件与 Qdrant 向量。若切分算法、嵌入模型或向量维度改变，可在停止 API 后执行以下可重建索引操作，再启动服务：
+更换嵌入模型或维度后，需要重建索引。以下命令保留材料原文，重建向量集合并重新排队索引任务：
 
 ```sh
 docker compose stop api
@@ -198,25 +170,24 @@ docker compose run --rm api reindex-all
 docker compose up -d api web
 ```
 
-该命令仅清空并重建派生的 Qdrant 集合，重排所有当前版本索引任务，不删除材料原文。请在重建完成前将 `index_state=building` 视为结果尚不完整。回滚到旧应用时可保留新增表和向量卷，旧材料读写路径仍使用 MySQL 与上传卷。
+索引完成前，检索结果可能不完整。单份材料可在页面中重新索引；`docker compose down -v` 会删除全部 Compose 数据卷，仅在明确需要清空本地数据时使用。
 
-只有明确要清空所有本地数据时才执行：
+## 当前限制
 
-```sh
-docker compose down -v
-```
+- 材料仅支持 UTF-8 文本和 Markdown，默认上传上限 5 MiB，可通过 `MAX_UPLOAD_BYTES` 调整；暂不解析 PDF、Word 或图片。
+- 提供预置账号，没有自助注册、改密、OAuth/SSO、作业或成绩管理。
+- MCP 兼容 `2025-06-18` 的 HTTP 工具子集，不支持 stdio、资源、提示模板、会话恢复或通用写入工具。
+- 当前按单实例 Compose 运行，登录限流保存在 API 进程内；多副本部署需要改造。默认配置也不包含公网 HTTPS 和高可用部署。
 
-## 安全边界
+## 详细文档
 
-- Bearer Token 是 HMAC-SHA256 签名的 JWT，并与可撤销的服务端会话关联。网页只在当前标签的 `sessionStorage` 保存 Token，不在浏览器存储角色或班级。
-- 登录成功创建 Token 对应的服务端会话，登出删除该会话行。用户名不存在、密码错误和锁定期使用同一失败响应。
-- 文件名只用于展示；磁盘存储名由服务端随机生成。仅允许非空 UTF-8 的 `.txt` / `.md`，大小上限来自环境变量。
-- 材料、知识库行与待索引任务处于同一事务；失败时回滚数据库并删除已写文件。向量索引异步重试，不影响原文保存。
-- 关键字 SQL 与 Qdrant 查询都用会话班级过滤；向量命中再回 MySQL 按班级、版本、状态和原文哈希核对。Qdrant 不保存切片正文。
-- Nginx 不提供 `/uploads` 静态目录，文件下载必须通过鉴权 API。
+| 文档 | 内容 |
+| --- | --- |
+| [AI 能力操作说明](docs/AI-CAPABILITIES.md) | 预置助手绑定知识库、标准技能接入 MCP |
+| [身份认证与知识库实现](docs/AUTH-AND-KNOWLEDGE.md) | Bearer 登录、班级隔离、材料入库、检索与问答 |
+| [助手、技能与流式会话](docs/LESSON-5.md) | 会话保存、SSE 事件、OpenAPI 生成和早期验收流程 |
+| [MCP 接入说明](docs/LESSON-6.md) | 工具发现、版本批准、调用配额、审计和隔离测试 |
+| [AI 能力验证记录](docs/AI-CAPABILITIES-VALIDATION.md) | 已执行的检查、证据位置与尚未验证的事项 |
+| [OpenSpec 变更](openspec/changes/) | 各次功能的需求、设计、规格与任务 |
 
-## 规约流程
-
-基础迭代的 OpenSpec change 是 `add-auth-rbac-class-knowledge`；检索与问答变更是 `add-class-scoped-knowledge-retrieval`。两者的 `proposal.md`、`design.md`、delta spec 和 `tasks.md` 是对应实现依据。基础变更仍有独立的 Compose 发布门禁，不能因本变更通过静态测试而自动归档。
-
-本轮五项能力的 OpenSpec 变更为 `add-built-in-ai-capabilities`，包含 proposal、design、三份新增能力规格和按提交划分的 tasks。前置教学/MCP 规约仍在途，本轮未同步主规约或归档变更。
+课程文档保留了对应迭代时的接口和行为说明；后续新增能力以当前代码及运行中的 [OpenAPI 文档](http://localhost:8080/openapi.json) 为准。
