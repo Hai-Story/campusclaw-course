@@ -11,7 +11,7 @@ from support import Context
 def main():
     c=Context();root=Path(__file__).resolve().parent/"reports"
     with sync_playwright() as p:
-        browser=p.chromium.launch(headless=True)
+        browser=p.chromium.launch(headless=True,chromium_sandbox=True)
         context=browser.new_context(viewport={"width":1440,"height":1000})
         page=context.new_page();errors=[]
         page.on("pageerror",lambda error:errors.append(str(error)))
@@ -111,7 +111,7 @@ def main():
         page.get_by_role('button',name='知识检索',exact=True).click()
         expect(page.get_by_role('heading',name='可追溯检索',exact=True)).to_be_visible()
         page.get_by_role('button',name='知识问答',exact=True).click()
-        expect(page.get_by_role('heading',name='依据资料问答',exact=True)).to_be_visible()
+        expect(page.get_by_role('heading',name='知识问答',exact=True)).to_be_visible()
         page.get_by_role('button',name='材料库',exact=True).click()
         expect(page.get_by_role('heading',name='教研材料',exact=True)).to_be_visible()
         # Swagger is publicly available; authorize using a token obtained by the test login API.
