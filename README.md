@@ -1,12 +1,61 @@
-# CampusClaw · 可追溯知识库检索
+# CampusClaw · 教学 AI 应用与可追溯知识库
 
-CampusClaw 是面向中小学的教研智能体。本仓库提供账号或 Token 登录、教师/学生权限、班级隔离、`.txt` / `.md` 材料管理，以及本班知识切片的关键字、向量、混合检索和带出处的简短问答。前端为 React，API 为 Go；MySQL 保存材料与切片，Qdrant 保存向量。
+CampusClaw 是面向中小学的教研智能体，内置学习应用、提示词模板、可上传技能及 MCP 工具接入。本仓库提供账号或 Token 登录、教师/学生权限、班级隔离、`.txt` / `.md` 材料管理，以及本班知识切片的关键字、向量、混合检索和带出处的简短问答。前端为 React，API 为 Go；MySQL 保存材料与切片，Qdrant 保存向量。
 
 身份认证、权限、知识入库、检索与问答的代码流程和实现边界，见 [身份认证与知识库问答实现方案](docs/AUTH-AND-KNOWLEDGE.md)。
 
 第五课已新增智能体配置、技能文件、私有会话、真实 SSE 流式链路、Swagger 与逐接口数据库验收；使用与验证方法见 [第五课实现说明](docs/LESSON-5.md)。下文单次问答的契约继续保留，新会话无资料时仍可回答。
 
 第六课新增同仓 `mcp-server/`、教师本班服务器管理、发现与版本批准、技能工具引用、模型多轮调用和审计；使用方法见 [第六课实现说明](docs/LESSON-6.md)，本次验证状态见 [第六课验证记录](docs/LESSON-6-VALIDATION.md)。启动前还需设置独立的 `MCP_AUTH_TOKEN`，教师登记时输入同一值。
+
+## 五项 AI 能力
+
+| 能力 | 入口与行为 |
+| --- | --- |
+| 内置多个 AI 应用 | “解题会话”优先展示数学解题助手、语文阅读助手、英语学习助手，点击卡片直接创建会话。教师可新增或调整本班助手。 |
+| 提示词模板 | “助手配置 → 提示词模板库”提供三个只读内置模板，可复制为本班自定义模板并创建、编辑、删除。预览后应用到角色提示词，保存助手生效。 |
+| 知识库检索 | “知识检索”支持关键词、向量、混合检索；助手配置可绑定本班材料，回答携带材料及切片引用。 |
+| 内置和上传 Skill | 预置数学解题引导、语文阅读分析、英语学习指导；教师可导入课程 `.txt/.md` 或标准单文件 `SKILL.md`，预览、编辑、启停、删除并绑定助手。 |
+| 外部工具与 MCP | “助手配置 → 本班工具服务”登记、连接并发现获准的 HTTP MCP 工具，通过技能批准并参与模型多轮调用，保存调用记录和审计。 |
+
+启动时会对所有现有班级初始化默认技能、模板和应用；以后新增的班级在下一次启动时补齐。初始化有独立班级版本记录，重复启动不覆盖教师修改、不重新启用停用助手、不恢复已删除技能。同名用户对象保持原样，不自动修改其绑定。
+
+默认应用不绑定材料或外部服务，无材料也能正常对话，此时没有资料引用。默认技能分别按标题中的“数学”“语文”“英语”筛选已绑定材料，可由教师调整资料范围。详细步骤见 [五项能力操作说明](docs/AI-CAPABILITIES.md)，本轮实际结果见 [验证记录](docs/AI-CAPABILITIES-VALIDATION.md)。
+
+### 提示词模板
+
+教师选择模板可预览正文，点击“应用到角色提示词”；替换已有提示词前需要确认，再点击“保存助手”。应用模板只复制正文，后续修改或删除模板不会影响已经保存的助手。
+
+模板管理接口为教师专用：`GET/POST /api/prompt-templates`、`PUT/DELETE /api/prompt-templates/{id}`。自定义模板按班级隔离，内置模板只读；本期采用固定文本，不支持变量填充。
+
+### 标准 SKILL.md 导入
+
+例如创建以下 UTF-8 文件：
+
+```markdown
+---
+name: math-step-guide
+description: 检查数学解题步骤，提供下一步提示。
+---
+先判断学生已经写出的步骤，指出错误与检查方向，鼓励学生自行继续推导。
+使用提供的资料时准确标注引用，不编造来源。
+```
+
+教师在“技能文件”选择文件，查看解析预览，再填写触发关键词（例如“方程，移项”）、资料标题范围、工具引用及启用状态。保存后勾选绑定该技能的助手并保存助手。编辑原文后应重新预览；文件的原始正文会完整保留，触发与工具配置单独保存。
+
+- `name`、`description` 与 Markdown 正文不能为空；标准技能名称最多 64 字，文件总计最多 8000 个 Unicode 字符。标准正文不受旧课程格式 2000 字说明限制。
+- 中文课程格式继续兼容：名称最多 32 字、说明最多 2000 字；原有仅提交 `source` 的 API 调用保留。
+- 标准格式创建/修改使用 `source` 加 `routing: {trigger, subject, tools, enabled}`；`POST /api/skills/preview` 供教师预览，不写入数据库。
+- 触发关键词沿用现有匹配机制。文件中的 `allowed-tools` 等附加元数据不授予任何工具权限。
+- 只导入单个指令文件，不加载附属文件、不安装依赖、不执行上传脚本，不支持 ZIP 技能包。
+
+### MCP 接入与范围
+
+部署者先允许服务根地址及只读工具（`MCP_ALLOWED_BASE_URLS`、`MCP_ALLOWED_TOOLS`），教师再登记独立 MCP Bearer 令牌，点击“连接并发现”。同仓默认服务提供 `formula_hint` 和 `unit_convert`；在技能工具字段填写 `工具名@服务器引用名`，核对声明后保存，表示批准当前版本。
+
+技能绑定助手且问题匹配时，模型自行选择是否调用；界面显示轮次与成功、出错、被拒状态，刷新后可以回放。重新发现引起声明变化时，旧批准失效，须重新核对并保存相关技能。默认初始化不会连接或批准外部服务。
+
+当前兼容 MCP `2025-06-18` 的 HTTP 工具子集，不支持 stdio、资源、提示模板、会话恢复或通用写入工具。应用登录 Token 与 MCP 令牌用途独立。
 
 ## 范围
 
@@ -115,6 +164,25 @@ PLAYWRIGHT_BROWSERS_PATH="$PWD/.tools/playwright" .venv/bin/python scripts/verif
 
 可用 `CHATBOT_BASE_URL` 覆盖验收地址，截图写入 `output/playwright/`。该模拟验收不能代替真实 `.env` 网关、MySQL 和 Qdrant 的 Compose 联调。
 
+## 本轮功能验收
+
+2026-10-21 已完成：后端全量竞态测试、独立 MCP 服务竞态测试、前端 12 项测试及构建、OpenAPI 校验、全部 5 个 OpenSpec 变更严格校验、41/41 逐接口数据库验收、重复迁移指纹检查，以及新旧真实浏览器端到端验收。
+
+浏览器已验证模板复制、覆盖确认与独立快照、两种技能格式导入、MCP 发现/批准/两轮调用/刷新回放、应用卡片、移动深色主题、原有材料引用和 Swagger Bearer 试调。隔离环境使用真实 MySQL、Qdrant 和独立 MCP 服务；模型和嵌入来自确定性模拟网关，**真实模型的技能遵循、工具选择与回答质量仍待验证**。
+
+启动独立测试环境后可运行：
+
+```sh
+sh apitest/with_lesson6_env.sh .venv/bin/python apitest/run_all.py
+sh apitest/with_lesson6_env.sh .venv/bin/python apitest/verify_builtin_apps.py
+sh apitest/with_lesson6_env.sh .venv/bin/python apitest/verify_builtin_knowledge.py
+sh apitest/with_lesson6_env.sh .venv/bin/python apitest/verify_standard_mcp.py
+sh apitest/with_lesson6_env.sh .venv/bin/python apitest/browser_capabilities.py
+sh apitest/with_lesson6_env.sh .venv/bin/python apitest/browser_check.py
+```
+
+这些脚本只允许显式授权的本机 `campusclaw_test_` 数据库，会写入测试数据。报告、截图和指纹位于 Git 忽略的 `apitest/reports/`。本次使用缓存基础镜像构建最新程序完成 Docker 验收；不代表生产 Dockerfile 的远程镜像拉取或生产部署已通过。
+
 ## 持久化与重置
 
 ```sh
@@ -150,3 +218,5 @@ docker compose down -v
 ## 规约流程
 
 基础迭代的 OpenSpec change 是 `add-auth-rbac-class-knowledge`；检索与问答变更是 `add-class-scoped-knowledge-retrieval`。两者的 `proposal.md`、`design.md`、delta spec 和 `tasks.md` 是对应实现依据。基础变更仍有独立的 Compose 发布门禁，不能因本变更通过静态测试而自动归档。
+
+本轮五项能力的 OpenSpec 变更为 `add-built-in-ai-capabilities`，包含 proposal、design、三份新增能力规格和按提交划分的 tasks。前置教学/MCP 规约仍在途，本轮未同步主规约或归档变更。
