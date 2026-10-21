@@ -1,0 +1,866 @@
+{
+  "Error": {
+    "type": "object",
+    "properties": {
+      "error": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "error"
+    ]
+  },
+  "Notice": {
+    "type": "object",
+    "properties": {
+      "message": {
+        "type": "string"
+      }
+    }
+  },
+  "User": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "integer",
+        "minimum": 1
+      },
+      "username": {
+        "type": "string"
+      },
+      "role": {
+        "type": "string",
+        "enum": [
+          "teacher",
+          "student"
+        ]
+      },
+      "class_id": {
+        "type": "integer",
+        "minimum": 1
+      },
+      "class_name": {
+        "type": "string"
+      }
+    }
+  },
+  "LoginRequest": {
+    "type": "object",
+    "properties": {
+      "username": {
+        "type": "string"
+      },
+      "password": {
+        "type": "string",
+        "format": "password"
+      }
+    },
+    "required": [
+      "username",
+      "password"
+    ]
+  },
+  "LoginResponse": {
+    "type": "object",
+    "properties": {
+      "user": {
+        "$ref": "#/components/schemas/User"
+      },
+      "token": {
+        "type": "string"
+      },
+      "token_type": {
+        "type": "string",
+        "enum": [
+          "Bearer"
+        ]
+      },
+      "expires_in": {
+        "type": "integer"
+      }
+    }
+  },
+  "Identity": {
+    "type": "object",
+    "properties": {
+      "user": {
+        "$ref": "#/components/schemas/User"
+      }
+    }
+  },
+  "AgentInput": {
+    "type": "object",
+    "properties": {
+      "name": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 64
+      },
+      "prompt": {
+        "type": "string",
+        "maxLength": 2000
+      },
+      "enabled": {
+        "type": "boolean"
+      },
+      "skill_ids": {
+        "type": "array",
+        "items": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "material_ids": {
+        "type": "array",
+        "items": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "required": [
+      "name",
+      "enabled"
+    ]
+  },
+  "Agent": {
+    "type": "object",
+    "properties": {
+      "name": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 64
+      },
+      "prompt": {
+        "type": "string",
+        "maxLength": 2000
+      },
+      "enabled": {
+        "type": "boolean"
+      },
+      "skill_ids": {
+        "type": "array",
+        "items": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "material_ids": {
+        "type": "array",
+        "items": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "id": {
+        "type": "integer",
+        "minimum": 1
+      },
+      "class_id": {
+        "type": "integer",
+        "minimum": 1
+      }
+    }
+  },
+  "AgentList": {
+    "type": "object",
+    "properties": {
+      "agents": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/Agent"
+        }
+      }
+    }
+  },
+  "SkillInput": {
+    "type": "object",
+    "properties": {
+      "source": {
+        "type": "string",
+        "maxLength": 8000,
+        "description": "名称、适用条件、启用必填；空行下写说明，工具支持 knowledge_search 和 tool@server；保存时验证并批准本班当前发现版本。"
+      }
+    },
+    "required": [
+      "source"
+    ],
+    "description": "中文技能文件；工具支持 knowledge_search 和 tool@server，保存时校验本班连接及发现声明，并批准该版本。"
+  },
+  "Skill": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "integer",
+        "minimum": 1
+      },
+      "class_id": {
+        "type": "integer",
+        "minimum": 1
+      },
+      "name": {
+        "type": "string"
+      },
+      "trigger": {
+        "type": "string"
+      },
+      "subject": {
+        "type": "string"
+      },
+      "tools": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "description": {
+        "type": "string"
+      },
+      "source": {
+        "type": "string"
+      },
+      "enabled": {
+        "type": "boolean"
+      }
+    }
+  },
+  "SkillList": {
+    "type": "object",
+    "properties": {
+      "skills": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/Skill"
+        }
+      }
+    }
+  },
+  "ConversationInput": {
+    "type": "object",
+    "properties": {
+      "agent_id": {
+        "type": "integer",
+        "minimum": 1
+      }
+    },
+    "required": [
+      "agent_id"
+    ]
+  },
+  "Conversation": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "integer",
+        "minimum": 1
+      },
+      "user_id": {
+        "type": "integer",
+        "minimum": 1
+      },
+      "class_id": {
+        "type": "integer",
+        "minimum": 1
+      },
+      "agent_id": {
+        "type": "integer",
+        "minimum": 1
+      },
+      "title": {
+        "type": "string"
+      },
+      "created_at": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "updated_at": {
+        "type": "string",
+        "format": "date-time"
+      }
+    }
+  },
+  "ConversationList": {
+    "type": "object",
+    "properties": {
+      "conversations": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/Conversation"
+        }
+      }
+    }
+  },
+  "Hit": {
+    "type": "object",
+    "properties": {
+      "chunk_id": {
+        "type": "integer",
+        "minimum": 1
+      },
+      "material_id": {
+        "type": "integer",
+        "minimum": 1
+      },
+      "title": {
+        "type": "string"
+      },
+      "original_name": {
+        "type": "string"
+      },
+      "chunk_index": {
+        "type": "integer"
+      },
+      "excerpt": {
+        "type": "string"
+      },
+      "start_offset": {
+        "type": "integer"
+      },
+      "end_offset": {
+        "type": "integer"
+      },
+      "offset_basis": {
+        "type": "string",
+        "enum": [
+          "original",
+          "processed"
+        ]
+      },
+      "rank": {
+        "type": "integer",
+        "minimum": 1
+      },
+      "keyword_score": {
+        "type": "number"
+      },
+      "vector_score": {
+        "type": "number"
+      }
+    }
+  },
+  "MessageInput": {
+    "type": "object",
+    "properties": {
+      "content": {
+        "type": "string",
+        "minLength": 2,
+        "maxLength": 500
+      }
+    },
+    "required": [
+      "content"
+    ]
+  },
+  "Message": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "integer",
+        "minimum": 1
+      },
+      "role": {
+        "type": "string",
+        "enum": [
+          "user",
+          "assistant"
+        ]
+      },
+      "content": {
+        "type": "string"
+      },
+      "citations": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/Hit"
+        }
+      },
+      "skill_name": {
+        "type": "string"
+      },
+      "status": {
+        "type": "string",
+        "enum": [
+          "complete",
+          "incomplete"
+        ]
+      },
+      "created_at": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "tool_calls": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/ToolCall"
+        }
+      }
+    }
+  },
+  "ConversationDetail": {
+    "type": "object",
+    "properties": {
+      "conversation": {
+        "$ref": "#/components/schemas/Conversation"
+      },
+      "messages": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/Message"
+        }
+      }
+    }
+  },
+  "Material": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "integer",
+        "minimum": 1
+      },
+      "class_id": {
+        "type": "integer",
+        "minimum": 1
+      },
+      "class_name": {
+        "type": "string"
+      },
+      "title": {
+        "type": "string"
+      },
+      "original_name": {
+        "type": "string"
+      },
+      "media_type": {
+        "type": "string"
+      },
+      "size_bytes": {
+        "type": "integer"
+      },
+      "created_at": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "content": {
+        "type": "string"
+      }
+    }
+  },
+  "MaterialList": {
+    "type": "object",
+    "properties": {
+      "materials": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/Material"
+        }
+      }
+    }
+  },
+  "MaterialDetail": {
+    "type": "object",
+    "properties": {
+      "material": {
+        "$ref": "#/components/schemas/Material"
+      }
+    }
+  },
+  "UploadInput": {
+    "type": "object",
+    "properties": {
+      "file": {
+        "type": "string",
+        "format": "binary",
+        "description": "非空 UTF-8 .txt/.md"
+      },
+      "title": {
+        "type": "string"
+      },
+      "strategy": {
+        "type": "string",
+        "description": "切分策略 JSON"
+      }
+    },
+    "required": [
+      "file"
+    ]
+  },
+  "UploadResponse": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "integer",
+        "minimum": 1
+      },
+      "message": {
+        "type": "string"
+      }
+    }
+  },
+  "Strategy": {
+    "type": "object",
+    "properties": {
+      "mode": {
+        "type": "string",
+        "enum": [
+          "auto",
+          "custom",
+          "hierarchy"
+        ]
+      },
+      "max_length": {
+        "type": "integer",
+        "minimum": 100,
+        "maximum": 2000
+      },
+      "overlap_percent": {
+        "type": "integer",
+        "minimum": 0,
+        "maximum": 50
+      },
+      "separator": {
+        "type": "string",
+        "enum": [
+          "newline",
+          "blank-line",
+          "period"
+        ]
+      },
+      "remove_urls": {
+        "type": "boolean"
+      },
+      "remove_emails": {
+        "type": "boolean"
+      },
+      "collapse_whitespace": {
+        "type": "boolean"
+      }
+    }
+  },
+  "ReindexInput": {
+    "type": "object",
+    "properties": {
+      "strategy": {
+        "$ref": "#/components/schemas/Strategy"
+      }
+    }
+  },
+  "SearchResult": {
+    "type": "object",
+    "properties": {
+      "hits": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/Hit"
+        }
+      },
+      "message": {
+        "type": "string"
+      },
+      "index_state": {
+        "type": "string",
+        "enum": [
+          "ready",
+          "building",
+          "degraded"
+        ]
+      }
+    }
+  },
+  "AskInput": {
+    "type": "object",
+    "properties": {
+      "question": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 200
+      },
+      "history": {
+        "type": "array",
+        "maxItems": 6,
+        "items": {
+          "type": "object",
+          "properties": {
+            "role": {
+              "type": "string",
+              "enum": [
+                "user",
+                "assistant"
+              ]
+            },
+            "content": {
+              "type": "string",
+              "maxLength": 1000
+            }
+          }
+        }
+      }
+    },
+    "required": [
+      "question"
+    ]
+  },
+  "AskResult": {
+    "type": "object",
+    "properties": {
+      "answer": {
+        "type": "string"
+      },
+      "index_state": {
+        "type": "string",
+        "enum": ["ready", "building", "degraded"]
+      },
+      "citations": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/Hit"
+        }
+      }
+    }
+  },
+  "MCPServerInput": {
+    "type": "object",
+    "properties": {
+      "name": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9_-]{0,31}$"
+      },
+      "base_url": {
+        "type": "string",
+        "format": "uri"
+      },
+      "token": {
+        "type": "string",
+        "format": "password",
+        "writeOnly": true,
+        "description": "仅写入服务端；更新时省略保留，空串清除"
+      }
+    },
+    "required": [
+      "name",
+      "base_url"
+    ]
+  },
+  "MCPServer": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "integer",
+        "minimum": 1
+      },
+      "name": {
+        "type": "string"
+      },
+      "base_url": {
+        "type": "string"
+      },
+      "has_token": {
+        "type": "boolean"
+      },
+      "status": {
+        "type": "string",
+        "enum": [
+          "connected",
+          "disconnected"
+        ]
+      },
+      "revision": {
+        "type": "integer"
+      },
+      "protocol_version": {
+        "type": "string"
+      },
+      "last_error": {
+        "type": "string"
+      }
+    }
+  },
+  "MCPServerList": {
+    "type": "object",
+    "properties": {
+      "servers": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/MCPServer"
+        }
+      }
+    }
+  },
+  "MCPTool": {
+    "type": "object",
+    "properties": {
+      "name": {
+        "type": "string"
+      },
+      "description": {
+        "type": "string"
+      },
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": true
+      },
+      "hash": {
+        "type": "string"
+      }
+    }
+  },
+  "MCPToolList": {
+    "type": "object",
+    "properties": {
+      "tools": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/MCPTool"
+        }
+      }
+    }
+  },
+  "MCPConnection": {
+    "type": "object",
+    "properties": {
+      "server": {
+        "$ref": "#/components/schemas/MCPServer"
+      },
+      "tools": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/MCPTool"
+        }
+      }
+    }
+  },
+  "MCPChange": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "integer",
+        "minimum": 1
+      },
+      "tool_name": {
+        "type": "string"
+      },
+      "old": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/MCPTool"
+          }
+        ],
+        "nullable": true
+      },
+      "new": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/MCPTool"
+          }
+        ],
+        "nullable": true
+      },
+      "created_at": {
+        "type": "string",
+        "format": "date-time"
+      }
+    }
+  },
+  "MCPChangeList": {
+    "type": "object",
+    "properties": {
+      "changes": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/MCPChange"
+        }
+      },
+      "next_before": {
+        "type": "integer"
+      }
+    }
+  },
+  "ToolCall": {
+    "type": "object",
+    "properties": {
+      "ref": {
+        "type": "string"
+      },
+      "status": {
+        "type": "string",
+        "enum": [
+          "ok",
+          "error",
+          "denied"
+        ]
+      },
+      "text": {
+        "type": "string"
+      },
+      "round": {
+        "type": "integer",
+        "minimum": 0
+      },
+      "call_id": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "ref",
+      "status",
+      "text",
+      "round",
+      "call_id"
+    ]
+  },
+  "MCPAudit": {
+    "allOf": [
+      {
+        "$ref": "#/components/schemas/ToolCall"
+      },
+      {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "server_id": {
+            "type": "integer",
+            "nullable": true
+          },
+          "server_name": {
+            "type": "string"
+          },
+          "user_id": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "conversation_id": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "question_id": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "duration_ms": {
+            "type": "integer"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      }
+    ]
+  },
+  "MCPAuditList": {
+    "type": "object",
+    "properties": {
+      "audits": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/MCPAudit"
+        }
+      },
+      "next_before": {
+        "type": "string"
+      }
+    }
+  }
+}

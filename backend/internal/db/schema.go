@@ -108,10 +108,10 @@ var schema = []string{
 }
 
 func Migrate(ctx context.Context, database *sql.DB) error {
-	for index, statement := range schema {
+	for index, statement := range append(append([]string{}, schema...), tutorSchema...) {
 		if _, err := database.ExecContext(ctx, statement); err != nil {
 			return fmt.Errorf("migration statement %d: %w", index+1, err)
 		}
 	}
-	return nil
+	return migrateMCP(ctx, database)
 }

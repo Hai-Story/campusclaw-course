@@ -144,7 +144,7 @@ func (v *vectorStore) RecreateCollection(ctx context.Context) error {
 	return err
 }
 
-func (v *vectorStore) Search(ctx context.Context, classID uint64, version string, vector []float32, limit int) ([]vectorCandidate, error) {
+func (v *vectorStore) Search(ctx context.Context, classID uint64, version string, vector []float32, limit int, scopes ...[]uint64) ([]vectorCandidate, error) {
 	if len(vector) != v.dim {
 		return nil, errors.New("embedding dimension mismatch")
 	}
@@ -152,6 +152,9 @@ func (v *vectorStore) Search(ctx context.Context, classID uint64, version string
 		map[string]any{"key": "class_id", "match": map[string]any{"value": classID}},
 		map[string]any{"key": "index_version", "match": map[string]any{"value": version}},
 	}}
+	if len(scopes) > 0 && len(scopes[0]) > 0 {
+		filter["must"] = append(filter["must"].([]any), map[string]any{"key": "material_id", "match": map[string]any{"any": scopes[0]}})
+	}
 	var result struct {
 		Result []struct {
 			ID    uint64  `json:"id"`

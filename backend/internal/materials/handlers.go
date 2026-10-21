@@ -51,6 +51,7 @@ func New(database *sql.DB, uploadDir string, maxUploadBytes int64, indexVersion 
 	return h
 }
 
+// @openapi {"method":"get","path":"/api/materials","id":"get_api_materials","summary":"本班材料列表与搜索","input":"","output":"MaterialList","success":200,"codes":[401,500],"query":[{"name":"q","in":"query","schema":{"type":"string"}}]}
 func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 	user, _ := auth.UserFromContext(r.Context())
 	q := strings.TrimSpace(r.URL.Query().Get("q"))
@@ -83,6 +84,7 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 	httpx.JSON(w, http.StatusOK, map[string]any{"materials": items})
 }
 
+// @openapi {"method":"get","path":"/api/materials/{id}","id":"get_api_materials_by_id","summary":"读取本班材料","input":"","output":"MaterialDetail","success":200,"codes":[401,404,500]}
 func (h *Handler) Detail(w http.ResponseWriter, r *http.Request) {
 	item, ok := h.authorizedMaterial(w, r)
 	if !ok {
@@ -92,6 +94,7 @@ func (h *Handler) Detail(w http.ResponseWriter, r *http.Request) {
 	httpx.JSON(w, http.StatusOK, map[string]any{"material": item})
 }
 
+// @openapi {"method":"get","path":"/api/materials/{id}/file","id":"get_api_materials_by_id_file","summary":"鉴权下载材料","input":"","output":"","success":200,"codes":[401,404,500],"produces":"application/octet-stream"}
 func (h *Handler) Download(w http.ResponseWriter, r *http.Request) {
 	item, ok := h.authorizedMaterial(w, r)
 	if !ok {
@@ -114,6 +117,7 @@ func (h *Handler) Download(w http.ResponseWriter, r *http.Request) {
 	_, _ = io.Copy(w, file)
 }
 
+// @openapi {"method":"post","path":"/api/materials","id":"post_api_materials","summary":"上传本班材料","input":"UploadInput","output":"UploadResponse","success":201,"codes":[400,401,403,413,500],"teacher":true,"consumes":"multipart/form-data"}
 func (h *Handler) Upload(w http.ResponseWriter, r *http.Request) {
 	user, _ := auth.UserFromContext(r.Context())
 	if user.Role != "teacher" {

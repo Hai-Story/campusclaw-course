@@ -1,0 +1,7 @@
+# Offline acceptance runtime. Build the binary with the project-mounted Go container first.
+FROM golang:1.22-alpine
+RUN addgroup -S campus && adduser -S -G campus campus && mkdir -p /data/uploads && chown -R campus:campus /data
+WORKDIR /app
+COPY campusclaw /app/campusclaw
+USER campus
+ENTRYPOINT ["/app/campusclaw"]

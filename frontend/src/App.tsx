@@ -4,6 +4,9 @@ import remarkGfm from "remark-gfm";
 import ChatPanel from "./ChatPanel";
 import { ApiError, ChunkStrategy, KnowledgeHit, Material, User, api, clearAccessToken, downloadMaterial, hasAccessToken, uploadMaterial, SearchMode } from "./api";
 
+import TutorChat from "./TutorChat";
+import TutorSettings from "./TutorSettings";
+
 type Theme = "light" | "dark";
 type ViewMode = "list" | "grid";
 type Toast = { id: number; message: string; tone: "success" | "error" | "info" };
@@ -201,7 +204,7 @@ function Library({
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<Material | null>(null);
   const [selectedCitation, setSelectedCitation] = useState<KnowledgeHit | null>(null);
-  const [section, setSection] = useState<"materials" | "knowledge" | "ask">("materials");
+  const [section, setSection] = useState<"materials" | "knowledge" | "ask" | "tutor" | "settings">("materials");
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [view, setView] = useState<ViewMode>(() =>
     localStorage.getItem("campus-view") === "grid" ? "grid" : "list"
@@ -305,6 +308,8 @@ function Library({
     { label: "搜索本班材料", hint: "/", run: () => { setSection("materials"); window.setTimeout(() => searchRef.current?.focus(), 0); } },
     { label: "知识库检索", hint: "检索", run: () => setSection("knowledge") },
     { label: "知识问答", hint: "AI", run: () => setSection("ask") },
+    { label: "解题会话", hint: "连续追问", run: () => setSection("tutor") },
+    ...(user.role === "teacher" ? [{ label: "助手配置", hint: "教师", run: () => setSection("settings") }] : []),
     ...(user.role === "teacher" ? [{ label: "上传教研材料", hint: "教师", run: () => setUploadOpen(true) }] : []),
     { label: theme === "light" ? "切换到深色主题" : "切换到浅色主题", hint: "主题", run: () => setTheme(theme === "light" ? "dark" : "light") },
     { label: view === "list" ? "切换到网格视图" : "切换到列表视图", hint: "视图", run: () => setView(view === "list" ? "grid" : "list") },
@@ -322,6 +327,8 @@ function Library({
           <button className={`nav-item ${section === "materials" ? "active" : ""}`} onClick={() => setSection("materials")}><span>册</span>材料库</button>
           <button className={`nav-item ${section === "knowledge" ? "active" : ""}`} onClick={() => setSection("knowledge")}><span>⌕</span>知识检索</button>
           <button className={`nav-item ${section === "ask" ? "active" : ""}`} aria-current={section === "ask" ? "page" : undefined} onClick={() => setSection("ask")}><span>问</span>知识问答</button>
+          <button className={`nav-item ${section === "tutor" ? "active" : ""}`} onClick={() => setSection("tutor")}><span>聊</span>解题会话</button>
+          {user.role === "teacher" && <button className={`nav-item ${section === "settings" ? "active" : ""}`} onClick={() => setSection("settings")}><span>配</span>助手配置</button>}
           <button className="nav-item" onClick={() => setCommandsOpen(true)}><span>⌘</span>快捷命令</button>
         </nav>
         <div className="rail-note">
@@ -340,9 +347,9 @@ function Library({
       <main className={`workspace ${section === "ask" ? "chat-workspace" : ""}`}>
         <header className="workspace-header">
           <div>
-            <p className="location">{user.class_name} / {section === "materials" ? "材料库" : section === "ask" ? "知识问答" : "知识检索"}</p>
-            <h1>{section === "materials" ? "教研材料" : section === "ask" ? "知识问答" : "可追溯检索"}</h1>
-            <p className="header-note">{section === "materials" ? `共 ${materials.length} 份可见材料` : section === "ask" ? "提问后核对回答所用的本班材料" : "检索本班切片，核对每条依据"} · 权限由服务端校验</p>
+            <p className="location">{user.class_name} / {section === "tutor" ? "解题会话" : section === "settings" ? "助手配置" : section === "materials" ? "材料库" : section === "ask" ? "知识问答" : "知识检索"}</p>
+            <h1>{section === "tutor" ? "一起把问题想明白" : section === "settings" ? "配置本班学习助手" : section === "materials" ? "教研材料" : section === "ask" ? "知识问答" : "可追溯检索"}</h1>
+            <p className="header-note">{section === "tutor" ? "选定一个助手，保留每次思考与出处" : section === "settings" ? "设定角色、解题方式和可用资料" : section === "materials" ? `共 ${materials.length} 份可见材料` : section === "ask" ? "提问后核对回答所用的本班材料" : "检索本班切片，核对每条依据"} · 权限由服务端校验</p>
           </div>
           <div className="header-actions">
             <button className="icon-button" onClick={() => setTheme(theme === "light" ? "dark" : "light")} aria-label="切换主题">
@@ -359,6 +366,8 @@ function Library({
           <button className={section === "materials" ? "selected" : ""} onClick={() => setSection("materials")}>材料库</button>
           <button className={section === "knowledge" ? "selected" : ""} onClick={() => setSection("knowledge")}>知识检索</button>
           <button className={section === "ask" ? "selected" : ""} onClick={() => setSection("ask")}>知识问答</button>
+          <button className={section === "tutor" ? "selected" : ""} onClick={() => setSection("tutor")}>解题会话</button>
+          {user.role === "teacher" && <button className={section === "settings" ? "selected" : ""} onClick={() => setSection("settings")}>助手配置</button>}
         </div>
 
         {section === "materials" ? <><section className="toolbar" aria-label="材料筛选与视图">
@@ -404,7 +413,7 @@ function Library({
               {user.role === "teacher" && <button className="quiet-action danger-action" onClick={() => deleteMaterial(item)} disabled={deletingId === item.id}>{deletingId === item.id ? "删除中…" : "删除"}</button>}
             </article>
           ))}
-        </section></> : section === "knowledge" ? <KnowledgePanel onOpen={openCitation} onError={handleError} /> : null}
+        </section></> : section === "knowledge" ? <KnowledgePanel onOpen={openCitation} onError={handleError} /> : section === "tutor" ? <TutorChat onOpen={openCitation} onError={handleError} /> : section === "settings" && user.role === "teacher" ? <TutorSettings onError={handleError} /> : null}
         <ChatPanel active={section === "ask"} onOpen={openCitation} onError={handleError} />
       </main>
 
