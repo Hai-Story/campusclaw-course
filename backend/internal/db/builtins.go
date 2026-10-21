@@ -5,6 +5,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 )
 
 func migrateBuiltins(ctx context.Context, database *sql.DB) error {
@@ -101,6 +102,9 @@ func SeedBuiltins(ctx context.Context, database *sql.DB) error {
 		if err = seedTemplates(ctx, database, class); err != nil {
 			return err
 		}
+		if err = seedApps(ctx, database, class); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -149,6 +153,57 @@ func seedTemplates(ctx context.Context, database *sql.DB, class uint64) error {
 				return nil, err
 			}
 			ids = append(ids, uint64(id))
+		}
+		return ids, nil
+	})
+}
+
+func seedApps(ctx context.Context, database *sql.DB, class uint64) error {
+	return seedVersion(ctx, database, class, "apps-v1", func(tx *sql.Tx) ([]uint64, error) {
+		var raw []byte
+		if err := tx.QueryRowContext(ctx, `SELECT objects_json FROM builtin_initializations WHERE class_id=? AND version='skills-v1'`, class).Scan(&raw); err != nil {
+			return nil, err
+		}
+		var seededSkills []uint64
+		if err := json.Unmarshal(raw, &seededSkills); err != nil {
+			return nil, err
+		}
+		owned := map[uint64]bool{}
+		for _, id := range seededSkills {
+			owned[id] = true
+		}
+		ids := []uint64{}
+		for _, item := range catalog.Apps {
+			var count int
+			if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM tutor_agents WHERE class_id=? AND name=?`, class, item.Name).Scan(&count); err != nil {
+				return nil, err
+			}
+			if count > 0 {
+				continue
+			}
+			result, err := tx.ExecContext(ctx, `INSERT INTO tutor_agents(class_id,name,prompt,enabled) VALUES(?,?,?,1)`, class, item.Name, catalog.Templates[item.Template].Prompt)
+			if err != nil {
+				return nil, err
+			}
+			id, err := result.LastInsertId()
+			if err != nil {
+				return nil, err
+			}
+			ids = append(ids, uint64(id))
+			var skillID uint64
+			err = tx.QueryRowContext(ctx, `SELECT id FROM tutor_skills WHERE class_id=? AND name=?`, class, catalog.Skills[item.Skill].Name).Scan(&skillID)
+			if errors.Is(err, sql.ErrNoRows) {
+				continue
+			}
+			if err != nil {
+				return nil, err
+			}
+			// Never bind a same-name skill that existed before our initialization.
+			if owned[skillID] {
+				if _, err = tx.ExecContext(ctx, `INSERT INTO tutor_agent_skills(agent_id,skill_id) VALUES(?,?)`, id, skillID); err != nil {
+					return nil, err
+				}
+			}
 		}
 		return ids, nil
 	})

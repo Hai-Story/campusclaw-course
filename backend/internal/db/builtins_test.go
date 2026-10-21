@@ -55,3 +55,22 @@ func TestBuiltinsMigrationOnlyWidensExistingColumns(t *testing.T) {
 		database.Close()
 	}
 }
+
+func TestExistingNamedAgentsAreNeverRebound(t *testing.T) {
+	database, mock, _ := sqlmock.New()
+	defer database.Close()
+	mock.ExpectBegin()
+	mock.ExpectExec("INSERT IGNORE INTO builtin_initializations").WithArgs(uint64(1), "apps-v1").WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectQuery("SELECT objects_json FROM builtin_initializations").WithArgs(uint64(1)).WillReturnRows(sqlmock.NewRows([]string{"objects_json"}).AddRow("[1,2,3]"))
+	for range 3 {
+		mock.ExpectQuery("SELECT COUNT.*FROM tutor_agents").WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
+	}
+	mock.ExpectExec("UPDATE builtin_initializations").WithArgs("[]", uint64(1), "apps-v1").WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectCommit()
+	if err := seedApps(context.Background(), database, 1); err != nil {
+		t.Fatal(err)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}

@@ -3,6 +3,9 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { api, applyTutorEvent, Conversation, KnowledgeHit, sendTutorMessage, TutorAgent, TutorMessage } from "./api";
 
+const preferredApps = ["数学解题助手", "语文阅读助手", "英语学习助手"];
+const appOrder = (name: string) => preferredApps.includes(name) ? preferredApps.indexOf(name) : preferredApps.length;
+
 export default function TutorChat({ onOpen, onError }: { onOpen: (hit: KnowledgeHit) => void; onError: (error: unknown) => void }) {
   const [agents, setAgents] = useState<TutorAgent[]>([]), [conversations, setConversations] = useState<Conversation[]>([]);
   const [agentID, setAgentID] = useState(0), [current, setCurrent] = useState<Conversation | null>(null), [messages, setMessages] = useState<TutorMessage[]>([]);
@@ -18,9 +21,9 @@ export default function TutorChat({ onOpen, onError }: { onOpen: (hit: Knowledge
     if (busy) return; setLoading(true); setError("");
     try { const data = await api.conversation(id); setCurrent(data.conversation); setMessages(data.messages); } catch (e) { onError(e); setError(e instanceof Error ? e.message : "会话读取失败"); } finally { setLoading(false); }
   }
-  async function create() {
-    if (!agentID || busy) return; setBusy(true); setError("");
-    try { const c = await api.createConversation(agentID); setCurrent(c); setMessages([]); await refresh(); } catch (e) { onError(e); setError(e instanceof Error ? e.message : "新建失败"); } finally { setBusy(false); }
+  async function create(selectedID = agentID) {
+    if (!selectedID || busy) return; setAgentID(selectedID); setBusy(true); setError("");
+    try { const c = await api.createConversation(selectedID); setCurrent(c); setMessages([]); await refresh(); } catch (e) { onError(e); setError(e instanceof Error ? e.message : "新建失败"); } finally { setBusy(false); }
   }
   async function submit(event: FormEvent) {
     event.preventDefault(); const text = question.trim(); if (!current || busy || Array.from(text).length < 2 || Array.from(text).length > 500) return;
@@ -38,11 +41,12 @@ export default function TutorChat({ onOpen, onError }: { onOpen: (hit: Knowledge
       else { setError(e instanceof Error ? e.message : "回答未完成"); onError(e); }
     } finally { controller.current = null; setBusy(false); void refresh().catch(onError); }
   }
+  const enabledAgents = agents.filter(a=>a.enabled).sort((a,b)=>appOrder(a.name)-appOrder(b.name));
   return <section className="tutor-layout">
     <aside className="conversation-sidebar">
       <p className="eyebrow">本班解题助手</p>
       <label>新会话使用的智能体<select aria-label="选择智能体" value={agentID} disabled={busy || loading} onChange={(e) => setAgentID(Number(e.target.value))}><option value={0}>请选择助手</option>{agents.filter((a) => a.enabled).map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}</select></label>
-      <button className="primary wide" onClick={create} disabled={!agentID || busy || loading}>新建会话</button>
+      <button className="primary wide" onClick={() => void create()} disabled={!agentID || busy || loading}>新建会话</button>
       {!loading && !agents.some((a) => a.enabled) && <p className="muted">本班暂无启用的助手，请教师先完成配置。</p>}
       <h2>我的会话</h2>
       <div className="conversation-list">{conversations.map((c) => <button key={c.id} disabled={busy} className={current?.id === c.id ? "selected" : ""} onClick={() => select(c.id)}>{c.title}<small>{new Date(c.updated_at).toLocaleString("zh-CN")}</small></button>)}</div>
@@ -50,6 +54,7 @@ export default function TutorChat({ onOpen, onError }: { onOpen: (hit: Knowledge
     </aside>
     <div className="conversation-main">
       <div className="conversation-heading"><h2>{current?.title || "开始一次学习对话"}</h2><p className="muted">{current ? `当前助手：${agents.find((a) => a.id === current.agent_id)?.name || `助手 #${current.agent_id}`} · 更换助手请新建会话` : "答案逐段出现，引用资料先到达。"}</p></div>
+      {!current && !loading && <section className="application-catalog" aria-label="学习应用"><h3>选择一个学习应用</h3><p className="muted">选择助手即可开始；教师可在助手配置中调整技能与资料。</p><div className="application-grid">{enabledAgents.map(a=><button type="button" className="application-card" key={a.id} disabled={busy} aria-label={`使用${a.name}`} onClick={()=>void create(a.id)}><strong>{a.name}</strong><span>{a.prompt.slice(0,100)||"按你的问题提供学习帮助"}</span><small>开始对话 →</small></button>)}</div></section>}
       <div className="message-list" aria-busy={busy || loading} aria-label="会话消息">
         {loading && <p className="muted">正在读取会话…</p>}
         {!loading && current && !messages.length && <p className="muted">说说你已经做到哪一步，以及卡住的地方。</p>}

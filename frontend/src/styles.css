@@ -418,5 +418,13 @@ textarea:focus-visible, select:focus-visible { outline:2px solid var(--red); out
 .mcp-reference-review { margin: 1rem 0; min-width: 0; }
 @media (max-width: 600px) { .mcp-settings .settings-actions { align-items: stretch; } .mcp-settings .settings-actions > * { width: 100%; } }
 
-.skill-preview { margin-block: 16px; padding: 16px; border: 1px solid var(--border); border-radius: 12px; }
+.skill-preview { margin-block: 16px; padding: 16px; border: 1px solid var(--line); border-radius: 12px; }
 .skill-preview pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 280px; overflow: auto; font: inherit; }
+
+.application-catalog {padding: 0 24px 20px;}
+.application-grid {display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,210px),1fr)); gap: 12px;}
+.application-card {display: flex; flex-direction: column; gap: 12px; text-align: left; padding: 20px; border: 1px solid var(--line); border-radius: 14px; background: var(--paper); color: inherit; min-width: 0; cursor: pointer;}
+.application-card:hover {border-color: var(--red);}
+.application-card span {font-size: .88rem; line-height: 1.65; overflow-wrap: anywhere;}
+.application-card small {margin-top: auto; color: var(--red);}
+@media(max-width:600px){.application-catalog {padding-inline: 14px;}}
