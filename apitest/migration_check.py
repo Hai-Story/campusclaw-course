@@ -8,7 +8,11 @@ import pymysql
 
 if not os.environ["APITEST_DB_NAME"].startswith("campusclaw_test_"):raise RuntimeError("requires isolated test database")
 db=pymysql.connect(host=os.environ["APITEST_DB_HOST"],port=int(os.environ["APITEST_DB_PORT"]),user=os.environ["APITEST_DB_USER"],password=os.environ["APITEST_PASSWORD"],database=os.environ["APITEST_DB_NAME"])
-queries={"users":"SELECT id,username,role,class_id FROM users ORDER BY id", "materials":"SELECT id,class_id,title,stored_name FROM materials ORDER BY id", "knowledge":"SELECT id,material_id,class_id,content FROM knowledge_entries ORDER BY id", "agents":"SELECT id,class_id,name,prompt,enabled FROM tutor_agents ORDER BY id", "skills":"SELECT id,class_id,source_text,enabled FROM tutor_skills ORDER BY id", "conversations":"SELECT id,user_id,class_id,agent_id,title FROM tutor_conversations ORDER BY id", "messages":"SELECT id,conversation_id,role,content,citations_json,skill_name,status FROM tutor_messages ORDER BY id", "skill_bindings":"SELECT agent_id,skill_id FROM tutor_agent_skills ORDER BY agent_id,skill_id", "material_bindings":"SELECT agent_id,material_id FROM tutor_agent_materials ORDER BY agent_id,material_id"}
+queries={"users":"SELECT id,username,role,class_id FROM users ORDER BY id", "materials":"SELECT id,class_id,title,stored_name FROM materials ORDER BY id", "knowledge":"SELECT id,material_id,class_id,content FROM knowledge_entries ORDER BY id", "agents":"SELECT id,class_id,name,prompt,enabled FROM tutor_agents ORDER BY id", "skills":"SELECT id,class_id,name,trigger_text,subject_text,tools_json,description,source_text,enabled FROM tutor_skills ORDER BY id", "conversations":"SELECT id,user_id,class_id,agent_id,title FROM tutor_conversations ORDER BY id", "messages":"SELECT id,conversation_id,role,content,citations_json,skill_name,status FROM tutor_messages ORDER BY id", "skill_bindings":"SELECT agent_id,skill_id FROM tutor_agent_skills ORDER BY agent_id,skill_id", "material_bindings":"SELECT agent_id,material_id FROM tutor_agent_materials ORDER BY agent_id,material_id"}
+queries.update({
+    "templates":"SELECT id,class_id,name,prompt,builtin FROM tutor_prompt_templates ORDER BY id",
+    "builtin_initializations":"SELECT class_id,version,objects_json FROM builtin_initializations ORDER BY class_id,version",
+})
 if os.environ.get("APITEST_MCP_TOKEN"):
     queries.update({
         "mcp_servers":"SELECT id,class_id,name,base_url,status,revision FROM mcp_servers ORDER BY id",

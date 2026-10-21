@@ -646,6 +646,56 @@
         },
         "type": "object"
       },
+      "PromptTemplate": {
+        "properties": {
+          "builtin": {
+            "type": "boolean"
+          },
+          "class_id": {
+            "type": "integer"
+          },
+          "id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "prompt": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "PromptTemplateInput": {
+        "properties": {
+          "name": {
+            "maxLength": 64,
+            "minLength": 1,
+            "type": "string"
+          },
+          "prompt": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "prompt"
+        ],
+        "type": "object"
+      },
+      "PromptTemplateList": {
+        "properties": {
+          "templates": {
+            "items": {
+              "$ref": "#/components/schemas/PromptTemplate"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
       "ReindexInput": {
         "properties": {
           "strategy": {
@@ -693,6 +743,7 @@
             "type": "integer"
           },
           "name": {
+            "maxLength": 64,
             "type": "string"
           },
           "source": {
@@ -714,8 +765,38 @@
         "type": "object"
       },
       "SkillInput": {
-        "description": "中文技能文件；工具支持 knowledge_search 和 tool@server，保存时校验本班连接及发现声明，并批准该版本。",
+        "description": "课程格式仅传 source；SKILL.md 须另传 routing。工具支持 knowledge_search 和 tool@server，保存时校验并批准本班当前声明。",
         "properties": {
+          "routing": {
+            "properties": {
+              "enabled": {
+                "type": "boolean"
+              },
+              "subject": {
+                "maxLength": 32,
+                "type": "string"
+              },
+              "tools": {
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 16,
+                "type": "array"
+              },
+              "trigger": {
+                "maxLength": 120,
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "trigger",
+              "subject",
+              "tools",
+              "enabled"
+            ],
+            "type": "object"
+          },
           "source": {
             "description": "名称、适用条件、启用必填；空行下写说明，工具支持 knowledge_search 和 tool@server；保存时验证并批准本班当前发现版本。",
             "maxLength": 8000,
@@ -736,6 +817,29 @@
             "type": "array"
           }
         },
+        "type": "object"
+      },
+      "SkillPreview": {
+        "properties": {
+          "description": {
+            "type": "string"
+          },
+          "format": {
+            "enum": [
+              "course",
+              "skill-md"
+            ],
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "format",
+          "name",
+          "description"
+        ],
         "type": "object"
       },
       "Strategy": {
@@ -3033,6 +3137,293 @@
         "summary": "当前用户"
       }
     },
+    "/api/prompt-templates": {
+      "get": {
+        "description": "仅教师可写。角色、班级来自服务端用户，客户端声明不参与授权。",
+        "operationId": "get_api_prompt_templates",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PromptTemplateList"
+                }
+              }
+            },
+            "description": "成功"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "缺少、无效或失效的 Bearer Token"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "学生不能执行教师管理操作"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "数据库、检索或生成服务暂时不可用"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "教师读取本班提示词模板"
+      },
+      "post": {
+        "description": "仅教师可写。角色、班级来自服务端用户，客户端声明不参与授权。",
+        "operationId": "post_api_prompt_templates",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PromptTemplateInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PromptTemplate"
+                }
+              }
+            },
+            "description": "成功"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "输入、长度、格式或班内重名错误"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "缺少、无效或失效的 Bearer Token"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "学生不能执行教师管理操作"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "数据库、检索或生成服务暂时不可用"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "创建本班自定义模板"
+      }
+    },
+    "/api/prompt-templates/{id}": {
+      "delete": {
+        "description": "仅教师可写。角色、班级来自服务端用户，客户端声明不参与授权。\n跨班、不可访问与不存在对象的 404 响应完全相同。",
+        "operationId": "delete_api_prompt_templates_by_id",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "成功，无响应体"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "缺少、无效或失效的 Bearer Token"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "学生不能执行教师管理操作"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "资源不存在或不可访问"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "数据库、检索或生成服务暂时不可用"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "删除本班自定义模板"
+      },
+      "put": {
+        "description": "仅教师可写。角色、班级来自服务端用户，客户端声明不参与授权。\n跨班、不可访问与不存在对象的 404 响应完全相同。",
+        "operationId": "put_api_prompt_templates_by_id",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PromptTemplateInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PromptTemplate"
+                }
+              }
+            },
+            "description": "成功"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "输入、长度、格式或班内重名错误"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "缺少、无效或失效的 Bearer Token"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "学生不能执行教师管理操作"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "资源不存在或不可访问"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "数据库、检索或生成服务暂时不可用"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "修改本班自定义模板"
+      }
+    },
     "/api/skills": {
       "get": {
         "description": "",
@@ -3167,6 +3558,70 @@
           }
         ],
         "summary": "从原文创建技能"
+      }
+    },
+    "/api/skills/preview": {
+      "post": {
+        "description": "仅教师可写。角色、班级来自服务端用户，客户端声明不参与授权。",
+        "operationId": "post_api_skills_preview",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SkillInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SkillPreview"
+                }
+              }
+            },
+            "description": "成功"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "输入、长度、格式或班内重名错误"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "缺少、无效或失效的 Bearer Token"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "学生不能执行教师管理操作"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "预览课程技能或 SKILL.md"
       }
     },
     "/api/skills/{id}": {

@@ -122,10 +122,14 @@ export const api = {
  mcpTools: (id: number) => request<{tools: MCPTool[]}>(`/api/mcp/servers/${id}/tools`),
  mcpChanges: (id: number, before?: number) => request<{changes: MCPChange[]; next_before: number}>(`/api/mcp/servers/${id}/changes?limit=20${before ? `&before=${before}` : ""}`),
  mcpAudits: (before = "", status = "", serverID = "") => request<{audits: MCPAudit[]; next_before: string}>(`/api/mcp/audits?${new URLSearchParams({limit: "20", ...(before ? {before} : {}), ...(status ? {status} : {}), ...(serverID ? {server_id: serverID} : {})})}`),
+  promptTemplates: () => request<{templates: PromptTemplate[]}>("/api/prompt-templates"),
+  savePromptTemplate: (input: {name: string; prompt: string}, id?: number) => request<PromptTemplate>(id ? `/api/prompt-templates/${id}` : "/api/prompt-templates", {method: id ? "PUT" : "POST", body: JSON.stringify(input)}),
+  deletePromptTemplate: (id: number) => request<void>(`/api/prompt-templates/${id}`, {method:"DELETE"}),
   agents: () => request<{ agents: TutorAgent[] }>("/api/agents"),
   saveAgent: (agent: Omit<TutorAgent, "id" | "class_id">, id?: number) => request<TutorAgent>(id ? `/api/agents/${id}` : "/api/agents", { method: id ? "PUT" : "POST", body: JSON.stringify(agent) }),
   skills: () => request<{ skills: TutorSkill[] }>("/api/skills"),
-  saveSkill: (source: string, id?: number) => request<TutorSkill>(id ? `/api/skills/${id}` : "/api/skills", { method: id ? "PUT" : "POST", body: JSON.stringify({ source }) }),
+  previewSkill: (source: string) => request<SkillPreview>("/api/skills/preview", {method: "POST", body: JSON.stringify({source})}),
+  saveSkill: (source: string, id?: number, routing?: SkillRouting) => request<TutorSkill>(id ? `/api/skills/${id}` : "/api/skills", { method: id ? "PUT" : "POST", body: JSON.stringify({ source, ...(routing ? {routing} : {}) }) }),
   deleteSkill: (id: number) => request<void>(`/api/skills/${id}`, { method: "DELETE" }),
   conversations: () => request<{ conversations: Conversation[] }>("/api/conversations"),
   createConversation: (agent_id: number) => request<Conversation>("/api/conversations", { method: "POST", body: JSON.stringify({ agent_id }) }),
@@ -284,3 +288,8 @@ export function applyTutorEvent(message: TutorMessage, {event, data}: StreamEven
  if (event === "done") return {...message, id: data.message_id || message.id, status: "complete"};
  return message;
 }
+
+export interface SkillRouting {trigger: string; subject: string; tools: string[]; enabled: boolean}
+export interface SkillPreview {format: "course" | "skill-md"; name: string; description: string}
+
+export interface PromptTemplate {id: number; class_id: number; name: string; prompt: string; builtin: boolean}

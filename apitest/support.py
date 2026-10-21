@@ -2,6 +2,7 @@
 import base64
 import hashlib
 import json
+import math
 import os
 import time
 import urllib.error
@@ -120,7 +121,7 @@ class Context:
         text="".join(e[1]["text"] for e in events if e[0]=="delta")
         row=self.rows("SELECT * FROM tutor_messages WHERE id=%s",(events[-1][1]["message_id"],))[0]
         assert row["content"]==text and row["status"]=="complete"
-        assert json.loads(row["citations_json"])==events[0][1]["citations"]
+        assert_citations_equal(events[0][1]["citations"], json.loads(row["citations_json"]))
         assert row["skill_name"]==(events[0][1]["skill"]["name"] if events[0][1]["skill"] else "")
         return text
 
@@ -133,3 +134,15 @@ def standalone(run):
     c=Context()
     try: run(c); print("PASS")
     finally: c.close()
+
+
+def assert_citations_equal(received, saved):
+    """MySQL JSON can round score doubles by one ULP; evidence remains exact."""
+    assert len(received)==len(saved), "引用数量变化"
+    for expected,actual in zip(received,saved):
+        assert expected.keys()==actual.keys(), "引用字段变化"
+        for key,value in expected.items():
+            if key in ('keyword_score','vector_score'):
+                assert math.isclose(value,actual[key],rel_tol=1e-12,abs_tol=1e-12), "检索分数超出浮点序列化误差"
+            else:
+                assert value==actual[key], "引用证据或定位信息变化："+key

@@ -113,5 +113,8 @@ func Migrate(ctx context.Context, database *sql.DB) error {
 			return fmt.Errorf("migration statement %d: %w", index+1, err)
 		}
 	}
+	if err := migrateBuiltins(ctx, database); err != nil {
+		return err
+	}
 	return migrateMCP(ctx, database)
 }
