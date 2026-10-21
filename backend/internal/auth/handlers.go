@@ -18,6 +18,7 @@ type loginRequest struct {
 	Password string `json:"password"`
 }
 
+// @openapi {"method":"post","path":"/api/login","id":"login","summary":"账号登录","input":"LoginRequest","output":"LoginResponse","success":200,"codes":[400,401,500],"public":true}
 func (a *Auth) Login(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, 8<<10)
 	var request loginRequest
@@ -68,6 +69,7 @@ func (a *Auth) Login(w http.ResponseWriter, r *http.Request) {
 	httpx.JSON(w, http.StatusOK, map[string]any{"user": user, "token": token, "token_type": "Bearer", "expires_in": int(a.ttl.Seconds())})
 }
 
+// @openapi {"method":"post","path":"/api/logout","id":"logout","summary":"撤销当前 Token","success":204,"codes":[401,500]}
 func (a *Auth) Logout(w http.ResponseWriter, r *http.Request) {
 	claims, ok := a.bearerClaims(r)
 	if !ok {
@@ -81,6 +83,7 @@ func (a *Auth) Logout(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// @openapi {"method":"get","path":"/api/me","id":"me","summary":"当前用户","output":"Identity","success":200,"codes":[401]}
 func (a *Auth) Me(w http.ResponseWriter, r *http.Request) {
 	user, ok := UserFromContext(r.Context())
 	if !ok {

@@ -1,0 +1,70 @@
+name: campusclaw-lesson5
+services:
+  db:
+    image: mysql:8.0
+    environment:
+      MYSQL_RANDOM_ROOT_PASSWORD: "yes"
+      MYSQL_DATABASE: campusclaw_test_lesson5
+      MYSQL_USER: apitest
+      MYSQL_PASSWORD: ${APITEST_PASSWORD:?test password required}
+    ports: ["127.0.0.1:13365:3306"]
+    volumes: ["db-data:/var/lib/mysql"]
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "--silent"]
+      interval: 3s
+      retries: 40
+      start_period: 15s
+  qdrant:
+    image: qdrant/qdrant:v1.12.4
+    volumes: ["vectors:/qdrant/storage"]
+  mock:
+    image: python:3.12-alpine
+    command: ["python", "/app/mock_gateway.py"]
+    volumes: ["../scripts/mock_gateway.py:/app/mock_gateway.py:ro"]
+    ports: ["127.0.0.1:18766:18765"]
+  api:
+    image: campusclaw-lesson5-api
+    build: ../backend
+    environment:
+      API_ADDR: :8081
+      DB_HOST: db
+      DB_PORT: "3306"
+      DB_NAME: campusclaw_test_lesson5
+      DB_USER: apitest
+      DB_PASSWORD: ${APITEST_PASSWORD}
+      SESSION_SECRET: ${APITEST_SESSION_SECRET:?test session secret required}
+      SESSION_TTL_MINUTES: "60"
+      UPLOAD_DIR: /data/uploads
+      MAX_UPLOAD_BYTES: "1048576"
+      LOGIN_MAX_FAILURES: "50"
+      LOGIN_LOCK_SECONDS: "10"
+      SEED_TEACHER_A_PASSWORD: ${APITEST_PASSWORD}
+      SEED_STUDENT_A1_PASSWORD: ${APITEST_PASSWORD}
+      SEED_STUDENT_B1_PASSWORD: ${APITEST_PASSWORD}
+      QDRANT_URL: http://qdrant:6333
+      GATEWAY_BASE_URL: http://mock:18765/v1
+      GATEWAY_API_KEY: local-test-only
+      EMBEDDING_MODEL: mock-embedding
+      CHAT_MODEL: mock-chat
+      EMBEDDING_DIMENSION: "8"
+      INDEX_RETRY_MAX: "5"
+      INDEX_RETRY_SECONDS: "1"
+    volumes: ["uploads:/data/uploads"]
+    depends_on:
+      db: {condition: service_healthy}
+      qdrant: {condition: service_started}
+      mock: {condition: service_started}
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8081/health"]
+      interval: 3s
+      retries: 30
+  web:
+    image: campusclaw-lesson5-web
+    build: ../frontend
+    ports: ["127.0.0.1:18085:8080"]
+    depends_on:
+      api: {condition: service_healthy}
+volumes:
+  db-data:
+  vectors:
+  uploads:

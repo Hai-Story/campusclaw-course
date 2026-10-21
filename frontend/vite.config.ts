@@ -6,7 +6,9 @@ export default defineConfig({
   server: {
     proxy: {
       "/api": "http://localhost:8081",
-      "/health": "http://localhost:8081"
+      "/health": "http://localhost:8081",
+      "/openapi.json": "http://localhost:8081",
+      "/swagger": "http://localhost:8081"
     }
   }
 });

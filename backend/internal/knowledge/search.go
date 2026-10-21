@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"strings"
 
 	"campusclaw/internal/config"
 )
@@ -54,6 +55,17 @@ type rankedCandidate struct {
 }
 
 func (s *Service) Search(ctx context.Context, classID uint64, q, mode string, limit int) (SearchResponse, error) {
+	return s.search(ctx, classID, q, mode, limit, nil)
+}
+
+func (s *Service) SearchWithinMaterials(ctx context.Context, classID uint64, q, mode string, limit int, materialIDs []uint64) (SearchResponse, error) {
+	if len(materialIDs) == 0 {
+		return SearchResponse{Hits: []Hit{}, IndexState: "ready", Message: NoEvidence}, nil
+	}
+	return s.search(ctx, classID, q, mode, limit, materialIDs)
+}
+
+func (s *Service) search(ctx context.Context, classID uint64, q, mode string, limit int, materialIDs []uint64) (SearchResponse, error) {
 	state, err := s.IndexState(ctx, classID)
 	if err != nil {
 		return SearchResponse{}, err
@@ -64,7 +76,7 @@ func (s *Service) Search(ctx context.Context, classID uint64, q, mode string, li
 		candidateLimit = 20
 	}
 	if mode == "keyword" || mode == "hybrid" {
-		keywords, err = s.keyword(ctx, classID, q, candidateLimit)
+		keywords, err = s.keyword(ctx, classID, q, candidateLimit, materialIDs)
 		if err != nil {
 			return SearchResponse{}, err
 		}
@@ -77,7 +89,7 @@ func (s *Service) Search(ctx context.Context, classID uint64, q, mode string, li
 		if err != nil {
 			return SearchResponse{}, fmt.Errorf("%w: %v", ErrUnavailable, err)
 		}
-		points, err := s.vectors.Search(ctx, classID, s.cfg.IndexVersion, queryVector, candidateLimit)
+		points, err := s.vectors.Search(ctx, classID, s.cfg.IndexVersion, queryVector, candidateLimit, materialIDs)
 		if err != nil {
 			return SearchResponse{}, fmt.Errorf("%w: %v", ErrUnavailable, err)
 		}
@@ -91,7 +103,7 @@ func (s *Service) Search(ctx context.Context, classID uint64, q, mode string, li
 		if len(hits) >= limit {
 			break
 		}
-		hit, err := s.hydrate(ctx, classID, candidate.id)
+		hit, err := s.hydrate(ctx, classID, candidate.id, materialIDs)
 		if errors.Is(err, sql.ErrNoRows) {
 			continue
 		}
@@ -144,11 +156,17 @@ func mergeRankings(mode string, keywords, vectors []rankedCandidate) []rankedCan
 	return ordered
 }
 
-func (s *Service) keyword(ctx context.Context, classID uint64, q string, limit int) ([]rankedCandidate, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT id, MATCH(chunk_text) AGAINST (? IN NATURAL LANGUAGE MODE) AS score
-		FROM knowledge_chunks WHERE class_id=? AND index_version=? AND index_status='ready'
-		AND MATCH(chunk_text) AGAINST (? IN NATURAL LANGUAGE MODE) > 0
-		ORDER BY score DESC, id ASC LIMIT ?`, q, classID, s.cfg.IndexVersion, q, limit)
+func (s *Service) keyword(ctx context.Context, classID uint64, q string, limit int, scopes ...[]uint64) ([]rankedCandidate, error) {
+	query := `SELECT id, MATCH(chunk_text) AGAINST (? IN NATURAL LANGUAGE MODE) AS score
+ FROM knowledge_chunks WHERE class_id=? AND index_version=? AND index_status='ready'
+ AND MATCH(chunk_text) AGAINST (? IN NATURAL LANGUAGE MODE) > 0`
+	args := []any{q, classID, s.cfg.IndexVersion, q}
+	if len(scopes) > 0 {
+		query, args = materialScope(query, args, "material_id", scopes[0])
+	}
+	query += ` ORDER BY score DESC, id ASC LIMIT ?`
+	args = append(args, limit)
+	rows, err := s.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -164,16 +182,20 @@ func (s *Service) keyword(ctx context.Context, classID uint64, q string, limit i
 	return items, rows.Err()
 }
 
-func (s *Service) hydrate(ctx context.Context, classID, chunkID uint64) (Hit, error) {
+func (s *Service) hydrate(ctx context.Context, classID, chunkID uint64, scopes ...[]uint64) (Hit, error) {
 	var hit Hit
-	err := s.db.QueryRowContext(ctx, `SELECT kc.id, kc.material_id, m.title, m.original_name,
+	query := `SELECT kc.id, kc.material_id, m.title, m.original_name,
 		kc.chunk_index, kc.chunk_text, kc.start_offset, kc.end_offset, kc.offset_basis
 		FROM knowledge_chunks kc JOIN knowledge_entries e ON e.id=kc.entry_id
 		JOIN materials m ON m.id=kc.material_id AND m.id=e.material_id
 		WHERE kc.id=? AND kc.class_id=? AND e.class_id=? AND m.class_id=?
 		AND kc.index_version=? AND kc.index_status='ready'
-		AND kc.content_hash=SHA2(e.content, 256)`,
-		chunkID, classID, classID, classID, s.cfg.IndexVersion).
+		AND kc.content_hash=SHA2(e.content, 256)`
+	args := []any{chunkID, classID, classID, classID, s.cfg.IndexVersion}
+	if len(scopes) > 0 {
+		query, args = materialScope(query, args, "m.id", scopes[0])
+	}
+	err := s.db.QueryRowContext(ctx, query, args...).
 		Scan(&hit.ChunkID, &hit.MaterialID, &hit.Title, &hit.OriginalName,
 			&hit.ChunkIndex, &hit.Excerpt, &hit.Start, &hit.End, &hit.OffsetBasis)
 	return hit, err
@@ -195,4 +217,16 @@ func (s *Service) IndexState(ctx context.Context, classID uint64) (string, error
 		return "building", nil
 	}
 	return "ready", nil
+}
+
+// Only server-selected numeric IDs enter this parameterized predicate.
+func materialScope(query string, args []any, column string, ids []uint64) (string, []any) {
+	if len(ids) == 0 {
+		return query, args
+	}
+	query += " AND " + column + " IN (" + strings.TrimSuffix(strings.Repeat("?,", len(ids)), ",") + ")"
+	for _, id := range ids {
+		args = append(args, id)
+	}
+	return query, args
 }

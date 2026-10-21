@@ -8,3 +8,7 @@ frontend/dist/
 .DS_Store
 coverage/
 output/playwright/
+apitest/reports/
+__pycache__/
+*.pyc
+backend/.tools/

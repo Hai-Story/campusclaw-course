@@ -26,12 +26,30 @@ services:
       - qdrant-data:/qdrant/storage
     networks: [campus-internal]
 
+  mcp-demo:
+    build:
+      context: ./mcp-server
+    restart: unless-stopped
+    environment:
+      MCP_AUTH_TOKEN: ${MCP_AUTH_TOKEN:?MCP_AUTH_TOKEN is required}
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8090/health >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    networks: [campus-internal]
+
   api:
     build:
       context: ./backend
     restart: unless-stopped
     environment:
       API_ADDR: ${API_ADDR:?API_ADDR is required}
+      MCP_ALLOWED_BASE_URLS: ${MCP_ALLOWED_BASE_URLS:-http://mcp-demo:8090}
+      MCP_ALLOWED_TOOLS: ${MCP_ALLOWED_TOOLS:-}
+      MCP_MAX_ROUNDS: ${MCP_MAX_ROUNDS:-3}
+      MCP_MAX_CALLS_PER_MESSAGE: ${MCP_MAX_CALLS_PER_MESSAGE:-6}
+      MCP_MAX_CALLS_PER_CONVERSATION: ${MCP_MAX_CALLS_PER_CONVERSATION:-24}
       DB_HOST: db
       DB_PORT: 3306
       DB_NAME: ${DB_NAME:?DB_NAME is required}
@@ -78,6 +96,7 @@ services:
       api:
         condition: service_healthy
     networks: [campus-internal]
+
 
 networks:
   campus-internal:

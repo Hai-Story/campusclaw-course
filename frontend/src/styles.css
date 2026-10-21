@@ -357,3 +357,63 @@ progress { width: 100%; height: 5px; border: 0; accent-color: var(--red); }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; }
 }
+
+/* Teaching conversations use the same paper, ink and red accents as the library. */
+textarea, select { width:100%; font:inherit; color:var(--ink); background:var(--paper); border:1px solid var(--line); border-radius:4px; padding:12px; }
+textarea { resize:vertical; line-height:1.7; min-height:90px; }
+textarea:focus-visible, select:focus-visible { outline:2px solid var(--red); outline-offset:2px; }
+.tutor-layout { display:grid; grid-template-columns:250px minmax(0,1fr); border:1px solid var(--line); background:var(--paper); border-radius:6px; overflow:hidden; }
+.conversation-sidebar { padding:24px; border-right:1px solid var(--line); background:var(--canvas); }
+.eyebrow { color:var(--red); font-size:12px; letter-spacing:.12em; margin-top:0; }
+.conversation-sidebar h2 { font-size:15px; margin-top:30px; }
+.conversation-list { display:grid; gap:8px; max-height:500px; overflow:auto; }
+.conversation-list button { text-align:left; padding:12px; border:1px solid transparent; border-radius:4px; background:transparent; overflow-wrap:anywhere; }
+.conversation-list button.selected { background:var(--paper); border-color:var(--line); color:var(--red); }
+.conversation-list small { display:block; color:var(--muted); font-size:11px; margin-top:6px; }
+.conversation-main { min-width:0; display:flex; flex-direction:column; }
+.conversation-heading { padding:22px 28px; border-bottom:1px solid var(--line); }
+.conversation-heading h2 { font-size:20px; margin:0 0 8px; }
+.conversation-heading p { font-size:12px; margin:0; }
+.message-list { padding:24px 28px; min-height:300px; max-height:60vh; overflow:auto; flex:1; }
+.tutor-message { margin-bottom:24px; padding:20px; border-left:2px solid var(--line); overflow-wrap:anywhere; }
+.tutor-message.user { background:var(--canvas); }
+.tutor-message.assistant { border-left-color:var(--red); }
+.message-role { margin:0 0 14px; color:var(--muted); font-size:12px; }
+.question-text { white-space:pre-wrap; margin:0; line-height:1.8; }
+.tutor-citations { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:14px; }
+.citation-link { padding:6px 10px; border:1px solid var(--line); border-radius:4px; background:var(--red-soft); color:var(--red); font-size:12px; text-align:left; }
+.tutor-composer { border-top:1px solid var(--line); padding:20px 28px; }
+.tutor-composer > div { display:flex; justify-content:space-between; align-items:center; margin-top:12px; }
+.conversation-main > .form-error { margin:0 28px 16px; }
+.settings-columns { display:grid; grid-template-columns:1fr 1fr; gap:24px; }
+.settings-card { min-width:0; background:var(--paper); border:1px solid var(--line); border-radius:6px; padding:28px; }
+.settings-card h2 { margin:0 0 22px; }
+.settings-card form { display:grid; gap:18px; margin-top:18px; }
+.settings-card .muted, .conversation-sidebar > .muted { font-size:12px; line-height:1.8; }
+.settings-card fieldset { margin:0; border:1px solid var(--line); padding:14px; max-height:240px; overflow:auto; }
+.settings-card legend { font-size:13px; color:var(--muted); padding:0 6px; }
+.check-row { display:flex; align-items:flex-start; gap:8px; margin:8px 0; line-height:1.6; }
+.check-row input { width:16px; margin:3px 0 0; accent-color:var(--red); flex-shrink:0; }
+.skill-source { font-family:ui-monospace, monospace; font-size:13px; }
+.settings-actions { display:flex; gap:10px; }
+.settings-notice { background:var(--quiet); color:var(--green); padding:14px; }
+.docs-link { display:inline-block; margin-top:24px; color:var(--red); }
+.mobile-sections { flex-wrap:wrap; }
+@media(max-width:900px) { .settings-columns { grid-template-columns:1fr; } .tutor-layout { grid-template-columns:210px minmax(0,1fr); } }
+@media(max-width:640px) { .tutor-layout { grid-template-columns:1fr; } .conversation-sidebar { padding:18px; border-right:0; border-bottom:1px solid var(--line); } .conversation-list { max-height:140px; } .conversation-heading,.message-list,.tutor-composer { padding:18px; } .tutor-message { padding:14px; } .settings-card { padding:20px; } }
+
+/* MCP extends the existing teaching settings and message cards. */
+.mcp-settings { margin-top: 1.5rem; }
+.mcp-settings details, .mcp-reference-review details { margin: .7rem 0; padding: .7rem; border: 1px solid var(--line); border-radius: .6rem; overflow-wrap: anywhere; }
+.mcp-settings summary, .mcp-reference-review summary { cursor: pointer; font-weight: 600; }
+.mcp-settings pre, .mcp-reference-review pre { max-height: 18rem; overflow: auto; white-space: pre-wrap; word-break: break-word; font-size: .8rem; }
+.tool-call-list { display: grid; gap: .5rem; margin-bottom: .8rem; }
+.tool-call { padding: .65rem .8rem; border: 1px solid var(--line); border-left: 3px solid #397858; border-radius: .5rem; overflow-wrap: anywhere; font-size: .85rem; }
+.tool-call p { margin: .3rem 0 0; white-space: pre-wrap; }
+.tool-call.error { border-left-color: #b5593d; }
+.tool-call.denied { border-left-color: #9c7a31; }
+.mcp-audit-list { list-style: none; padding: 0; display: grid; gap: .65rem; }
+.mcp-audit-list small { display: block; margin-top: .35rem; }
+.mcp-audits { margin-top: 1.2rem; }
+.mcp-reference-review { margin: 1rem 0; min-width: 0; }
+@media (max-width: 600px) { .mcp-settings .settings-actions { align-items: stretch; } .mcp-settings .settings-actions > * { width: 100%; } }

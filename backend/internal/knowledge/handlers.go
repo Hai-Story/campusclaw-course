@@ -20,6 +20,7 @@ func validQuestion(q string) bool {
 	return q != "" && utf8.ValidString(q) && utf8.RuneCountInString(q) <= 200
 }
 
+// @openapi {"method":"get","path":"/api/knowledge/search","id":"get_api_knowledge_search","summary":"本班切片检索","input":"","output":"SearchResult","success":200,"codes":[400,401,500,503],"query":[{"name":"q","in":"query","required":true,"schema":{"type":"string","minLength":1,"maxLength":200}},{"name":"mode","in":"query","schema":{"type":"string","enum":["keyword","vector","hybrid"],"default":"hybrid"}},{"name":"limit","in":"query","schema":{"type":"integer","minimum":1,"maximum":20,"default":10}}]}
 func (s *Service) SearchHTTP(w http.ResponseWriter, r *http.Request) {
 	user, _ := auth.UserFromContext(r.Context())
 	q := strings.TrimSpace(r.URL.Query().Get("q"))
@@ -60,6 +61,7 @@ func writeSearchError(w http.ResponseWriter, err error) {
 	httpx.Error(w, http.StatusInternalServerError, "知识库检索失败")
 }
 
+// @openapi {"method":"post","path":"/api/ask","id":"post_api_ask","summary":"第四课本班资料单次问答","input":"AskInput","output":"AskResult","success":200,"codes":[400,401,500,502,503],"description":"question 为 1–200 字；无依据返回固定文案和空引用，不调用模型。"}
 func (s *Service) AskHTTP(w http.ResponseWriter, r *http.Request) {
 	user, _ := auth.UserFromContext(r.Context())
 	r.Body = http.MaxBytesReader(w, r.Body, 64<<10)
@@ -147,6 +149,7 @@ func validCitations(answer string, count int) bool {
 	return true
 }
 
+// @openapi {"method":"post","path":"/api/materials/{id}/reindex","id":"post_api_materials_by_id_reindex","summary":"重建材料索引","input":"ReindexInput","output":"Notice","success":202,"codes":[400,401,403,404,409,500],"teacher":true}
 func (s *Service) ReindexHTTP(w http.ResponseWriter, r *http.Request) {
 	user, _ := auth.UserFromContext(r.Context())
 	if user.Role != "teacher" {

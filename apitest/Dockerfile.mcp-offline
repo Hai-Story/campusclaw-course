@@ -1,0 +1,6 @@
+# Offline acceptance runtime; the actual source is compiled in a network-disabled Go container.
+FROM golang:1.22-alpine
+RUN addgroup -S campus && adduser -S -G campus campus
+COPY mcp-demo /app/mcp-demo
+USER campus
+ENTRYPOINT ["/app/mcp-demo"]

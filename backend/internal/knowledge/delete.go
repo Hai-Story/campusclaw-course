@@ -15,6 +15,7 @@ import (
 	"campusclaw/internal/httpx"
 )
 
+// @openapi {"method":"delete","path":"/api/materials/{id}","id":"delete_api_materials_by_id","summary":"删除本班材料与索引","input":"","output":"","success":204,"codes":[401,403,404,409,500,503],"teacher":true}
 func (s *Service) DeleteMaterialHTTP(w http.ResponseWriter, r *http.Request) {
 	user, _ := auth.UserFromContext(r.Context())
 	if user.Role != "teacher" {

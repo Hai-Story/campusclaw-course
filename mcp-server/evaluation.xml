@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Read-only model evaluations. Require both tools, judge learning hints, never ask for a final numerical solution. Not run against a real model in this session. -->
+<evaluation>
+  <qa_pair><question>学生在去括号后把米换成厘米。请分别调用步骤与单位工具，判断应先核对哪两类内容，只回答“逐项分配；单位进率”。</question><answer>逐项分配；单位进率</answer></qa_pair>
+  <qa_pair><question>学生将负号前的括号展开，然后从厘米换回米。请用两种工具核对检查方向，只返回“符号核对；大单位方向”。</question><answer>符号核对；大单位方向</answer></qa_pair>
+  <qa_pair><question>学生先移项、再将千克换成克。用步骤提示与单位提示共同判断应保持的原则，只回答“等式两边同运算；大换小乘法”。</question><answer>等式两边同运算；大换小乘法</answer></qa_pair>
+  <qa_pair><question>学生需要通分并将分钟换成秒。分别取得两个提示，归纳首要检查，只回答“最小公倍数；大换小乘法”。</question><answer>最小公倍数；大换小乘法</answer></qa_pair>
+  <qa_pair><question>学生准备代入一个长度公式并把千米换成米。先获取公式提示，再取得单位方向提示，输出“公式条件和量纲；单位进率”。</question><answer>公式条件和量纲；单位进率</answer></qa_pair>
+  <qa_pair><question>学生将克换成千克后代入公式。两种提示工具分别给出什么核对方向？只输出“公式条件和量纲；小换大除法”。</question><answer>公式条件和量纲；小换大除法</answer></qa_pair>
+  <qa_pair><question>学生移项后需要把秒换成分钟。调用两种工具，概括下一步而不求最终得数，只回答“移项符号；小换大除法”。</question><answer>移项符号；小换大除法</answer></qa_pair>
+  <qa_pair><question>学生通分后保留相同的时间单位 h。请通过两工具核对，只回答“分子分母同乘；相同单位不换算”。</question><answer>分子分母同乘；相同单位不换算</answer></qa_pair>
+  <qa_pair><question>学生去括号后打算把米换成千克。先取步骤提示、再尝试单位工具，判断单位请求能否接受，只回答“需要逐项检查；量纲不一致拒绝”。</question><answer>需要逐项检查；量纲不一致拒绝</answer></qa_pair>
+  <qa_pair><question>学生在公式代入前把小时换成分钟。分别调用工具核对，且不要计算题目最终值，只回答“检查公式适用条件；大换小乘法”。</question><answer>检查公式适用条件；大换小乘法</answer></qa_pair>
+</evaluation>
