@@ -1,24 +1,22 @@
 # CampusClaw
 
-面向中小学课堂的 AI 学习助手与班级知识库，也是「互联网软件开发」课程的实践项目。
+面向中小学课堂的 AI 学习助手，「互联网软件开发」课程实践项目。
 
-教师上传课程材料、配置助手，学生围绕本班资料提问。项目内置数学、语文和英语三个学习助手，支持带来源的回答、可连续追问的流式会话，以及通过 MCP 接入的教学工具。
+教师上传讲义、配置助手，学生可以查资料、问问题，也可以带着自己的解题步骤继续追问。回答用到班级资料时会附上原文引用，方便核对。项目内置数学、语文、英语三个助手，支持保存会话，并可通过 MCP 接入教学工具。
 
-[快速开始](#快速开始) · [使用指南](#使用指南) · [开发与测试](#开发与测试) · [详细文档](#详细文档)
+[本地运行](#本地运行) · [第一次使用](#第一次使用) · [开发](#开发) · [文档](#文档)
 
-## 能做什么
+## 功能
 
-- **管理班级资料**：上传、预览和下载 UTF-8 的 `.txt` / `.md` 文件，支持自动、自定义和按 Markdown 标题切分。教师可删除材料或重建索引。
-- **检索并引用原文**：支持关键词、向量和混合检索。回答中的引用能定位到材料及切片，方便回到原文核对。
-- **使用学科助手**：数学解题、语文阅读、英语学习三个应用开箱可选。会话支持流式输出、连续追问、停止生成和刷新后恢复。
-- **调整教学方式**：教师可以复制提示词模板、导入单文件 `SKILL.md`，为助手设置角色、技能和材料范围。
-- **接入教学工具**：自带 MCP 示例服务，提供公式步骤提示与单位换算方向；工具需经过白名单、发现和版本批准，调用过程可查看、可审计。
+- **班级知识库**：上传文本或 Markdown 材料，按关键词、向量或混合方式检索，查看回答引用的原文。
+- **学习助手**：流式回答、连续追问、停止生成和历史会话恢复。教师可以调整提示词、绑定材料，也可以导入单文件 `SKILL.md`。
+- **教学工具**：附带公式步骤提示、单位换算方向两个 MCP 示例工具。教师连接服务、确认工具版本后，助手才能调用；调用过程有记录可查。
 
-材料和助手按班级隔离，会话仅本人可见。教师可以管理本班资源，但不能查看学生的私有会话。网页适配桌面和手机，并提供深浅两种主题。
+材料和助手按班级隔离，会话仅本人可见，教师也不能查看学生的私有会话。页面支持手机访问和深浅主题。
 
-## 快速开始
+## 本地运行
 
-需要 Docker Desktop（或 Docker Engine 与 Compose 插件），以及可用的模型网关。网关需兼容 OpenAI 的 `/embeddings` 和 `/chat/completions` 接口；解题会话需要 SSE 流式输出，MCP 调用还需要模型支持工具调用。
+准备好 Docker Desktop（或 Docker Engine + Compose 插件）和模型网关。网关需要兼容 OpenAI 的 `/embeddings`、`/chat/completions` 接口，支持 SSE 流式输出；使用 MCP 时，对话模型还需要支持工具调用。
 
 ### 1. 获取代码
 
@@ -28,87 +26,71 @@ cd campusclaw-course
 cp .env.example .env
 ```
 
-已有本地配置时保留原 `.env`，按 [.env.example](.env.example) 补齐缺少的字段即可。
+如果已有 `.env`，保留原文件，对照 [.env.example](.env.example) 补齐配置。
 
-### 2. 填写配置
+### 2. 配置环境
 
-编辑 `.env`，至少替换以下示例值：
+编辑 `.env`，替换这些示例值，其余项可以先用默认值：
 
-| 配置 | 填写内容 |
+| 配置 | 说明 |
 | --- | --- |
 | `DB_PASSWORD` | 本地数据库密码 |
 | `SESSION_SECRET` | 至少 32 个随机字符，用于签名登录 Token |
-| `SEED_TEACHER_A_PASSWORD` | A 班教师的初始密码 |
+| `SEED_TEACHER_A_PASSWORD` | 教师账号初始密码 |
 | `SEED_STUDENT_A1_PASSWORD`、`SEED_STUDENT_B1_PASSWORD` | 两个学生账号的初始密码 |
-| `GATEWAY_BASE_URL`、`GATEWAY_API_KEY` | 模型网关地址（通常以 `/v1` 结尾）与密钥 |
-| `CHAT_MODEL` | 网关支持的对话模型名 |
-| `EMBEDDING_MODEL`、`EMBEDDING_DIMENSION` | 嵌入模型名及其实际输出维度，二者必须匹配 |
-| `MCP_AUTH_TOKEN` | 独立的 MCP 服务令牌，不能与应用登录 Token 混用 |
+| `GATEWAY_BASE_URL`、`GATEWAY_API_KEY` | 模型网关地址（通常以 `/v1` 结尾）和密钥 |
+| `CHAT_MODEL` | 对话模型名称 |
+| `EMBEDDING_MODEL`、`EMBEDDING_DIMENSION` | 嵌入模型名称及其实际输出维度，二者必须匹配 |
+| `MCP_AUTH_TOKEN` | MCP 服务独立令牌，不使用应用登录 Token |
 
-其余配置可先保留示例值。默认网页端口为 `8080`，如有冲突可修改 `WEB_PORT`。Compose 中 API 使用 `:8081`，与 Nginx 上游和健康检查保持一致。
+默认网页端口为 `8080`，占用时修改 `WEB_PORT`。Compose 中的 `API_ADDR` 保持 `:8081`，与 Nginx 和健康检查一致。
 
-仓库不附带可用密钥。嵌入请求会将材料切片发送到配置的网关，对话请求会发送问题、相关历史及命中的资料；请使用获准处理这些内容的服务，并勿提交 `.env`。
+材料切片、提问及相关历史会发送到配置的模型网关。请选用适合处理这些内容的服务，不要提交 `.env`。
 
-### 3. 启动并登录
+### 3. 启动
 
 ```sh
 docker compose up --build -d
 docker compose ps
 ```
 
-首次启动需要拉取镜像、构建应用并等待 MySQL 就绪。完成后打开：
+首次启动会构建镜像，等待 MySQL 就绪，并创建示例账号、两班材料和默认助手。启动后访问 [localhost:8080](http://localhost:8080)，API 文档在 [Swagger UI](http://localhost:8080/swagger/)。如果改过 `WEB_PORT`，地址中的端口也要对应修改。
 
-- 网页：[localhost:8080](http://localhost:8080)
-- API 文档：[Swagger UI](http://localhost:8080/swagger/)
-- 存活检查：[health](http://localhost:8080/health)
-
-如修改了 `WEB_PORT`，请相应替换地址中的端口。启动失败时可用 `docker compose logs --tail=100 api` 查看原因。
-
-| 账号 | 身份 | 初始密码对应配置 |
+| 账号 | 身份 | 密码来源 |
 | --- | --- | --- |
 | `teacher_a` | A 班教师 | `SEED_TEACHER_A_PASSWORD` |
 | `student_a1` | A 班学生 | `SEED_STUDENT_A1_PASSWORD` |
 | `student_b1` | B 班学生 | `SEED_STUDENT_B1_PASSWORD` |
 
-首次启动会创建账号、两班示例材料及默认助手。重复启动不会覆盖教师修改，也不会恢复已删除的默认技能。已有账号密码不会随 `.env` 中的初始密码修改而重置。
+初始密码只在创建账号时使用，之后修改 `.env` 不会重置已有密码。启动失败时，先看 `docker compose logs --tail=100 api`。
 
-## 使用指南
+## 第一次使用
 
-### 先试一次对话
+用 `student_a1` 登录，打开「解题会话」，选择「数学解题助手」。可以先问一道题，例如：
 
-用 `student_a1` 登录，进入「解题会话」，点击「数学解题助手」，输入一道题和你已经写出的步骤。默认助手即使没有绑定材料也能对话，此时不会显示资料引用。
+> 我解 2(x + 3) = 14 时，第一步写成了 2x + 3 = 14。哪一步有问题？先给我一个提示。
 
-要让回答用上课程资料：
+助手不绑定材料也能对话。要试试带资料引用的回答，可以走一遍教师和学生的流程：
 
-1. 用 `teacher_a` 登录，在「材料库」上传 `.txt` 或 `.md`，等待索引就绪。
-2. 在「助手配置」选择助手，勾选本班材料并保存。
-3. 切回学生账号，在「解题会话」提问；点击回答中的引用可查看原文。
+1. 用 `teacher_a` 登录，在「材料库」上传一份 UTF-8 的 `.txt` 或 `.md`，标题中写上学科，例如「数学：一元一次方程」，等待索引就绪。
+2. 在「助手配置」选中「数学解题助手」，勾选刚上传的材料并保存。
+3. 切回 `student_a1`，围绕材料内容提问，点击回答中的引用查看原文。
 
-默认技能按材料标题中的「数学」「语文」「英语」筛选资料。上传时可在标题中写明学科，也可以由教师调整技能的资料范围。修改助手配置后，已有会话的下一轮就会使用新配置。
+默认技能按材料标题里的「数学」「语文」「英语」筛选资料；教师也可以调整技能的资料范围。助手配置保存后，已有会话的下一轮就会使用新配置。
 
-### 知识问答和解题会话有什么区别
+页面里有三个相关入口：
 
-| 入口 | 适合的用途 | 没有匹配资料时 | 历史记录 |
-| --- | --- | --- | --- |
-| 知识检索 | 查找本班材料中的相关片段 | 显示空结果 | 不创建会话 |
-| 知识问答 | 根据本班资料给出简短回答 | 返回「资料中未找到相关内容」，不调用对话模型 | 保留在当前页面运行期间，刷新后清空 |
-| 解题会话 | 选择助手，连续提问和追问 | 仍可由模型回答，不附资料引用 | 保存到服务端，可从「我的会话」恢复 |
+| 入口 | 用途 | 记录 |
+| --- | --- | --- |
+| 知识检索 | 查找本班材料中的片段 | 不创建会话 |
+| 知识问答 | 根据本班资料回答；没有命中资料时不调用对话模型 | 刷新页面后清空 |
+| 解题会话 | 与选定的助手连续对话；未命中资料时也能回答，但不附资料引用 | 保存到服务端，可从「我的会话」恢复 |
 
-教师可以上传和管理材料；学生可以查看、检索、下载并使用助手。跨班资源与不存在的资源均返回 404。
+提示词模板可以复制后编辑，再应用到助手；技能文件用于补充处理指令，当前只读取单个文件，不执行脚本或安装依赖。MCP 服务需要先连接、发现并批准工具版本，再通过技能绑定助手。具体步骤见 [AI 能力操作说明](docs/AI-CAPABILITIES.md) 和 [MCP 接入说明](docs/LESSON-6.md)。
 
-### 配置模板、技能和 MCP
+## 开发
 
-**提示词模板**用于快速填写助手的角色提示词。内置模板只读，可以复制为本班模板后编辑；应用模板后还需保存助手。模板正文按副本保存，后续修改模板不会改写已有助手。
-
-**技能文件**用于补充特定问题的处理指令。教师可导入课程格式的 `.txt` / `.md`，也可导入带 `name`、`description` 和正文的标准 `SKILL.md`。预览后设置触发关键词、资料范围和工具引用，再绑定到助手。当前只读取单个指令文件，不执行脚本或安装依赖，也不支持 ZIP 技能包。
-
-**MCP 工具**需要单独连接。使用同仓示例服务时，在「助手配置 → 本班工具服务」登记引用名 `campus-tools`、地址 `http://mcp-demo:8090`，并输入 `.env` 中设置的 `MCP_AUTH_TOKEN`。连接并发现后，核对工具声明，在技能中填写 `formula_hint@campus-tools` 或 `unit_convert@campus-tools`，保存批准，再绑定助手。
-
-其他 MCP 服务需要部署者先配置 `MCP_ALLOWED_BASE_URLS` 和 `MCP_ALLOWED_TOOLS`。模型是否调用工具取决于命中的技能和当前问题；工具声明变更后需要重新批准。完整步骤见 [AI 能力操作说明](docs/AI-CAPABILITIES.md) 和 [MCP 接入说明](docs/LESSON-6.md)。
-
-## 项目结构
-
-前端使用 React、TypeScript 和 Vite；后端使用 Go 标准库 HTTP 服务。MySQL 保存用户、材料原文、切片和会话，Qdrant 保存向量及标识，模型请求由 Go API 发起。
+前端是 React + TypeScript + Vite，后端使用 Go 标准库 HTTP 服务。MySQL 保存用户、材料原文、切片和会话，Qdrant 保存向量，模型和 MCP 请求由后端发起。
 
 ```text
 浏览器 → Nginx → Go API → MySQL / Qdrant
@@ -116,21 +98,19 @@ docker compose ps
                        → MCP 服务
 ```
 
-Compose 默认只发布网页端口，数据库、API、Qdrant 和 MCP 服务留在容器网络内。上传文件存放在独立数据卷中，下载必须经过 API 鉴权。
+Compose 只向宿主机发布网页端口，其余服务在容器网络内通信。上传文件存放在独立数据卷，下载经过 API 鉴权。
 
 ```text
-frontend/     React 页面、样式与前端测试
-backend/      Go API、鉴权、知识检索、助手与 OpenAPI 文档
-mcp-server/   独立的教学工具示例服务
-apitest/      隔离环境、逐接口数据库验收与浏览器脚本
-scripts/      鉴权、知识库、聊天验证及文档维护脚本
-docs/         功能说明、实现细节和各轮验证记录
-openspec/     需求、设计、规格与任务记录
+frontend/     页面、样式和前端测试
+backend/      API、鉴权、检索、助手和 OpenAPI 文档
+mcp-server/   教学工具示例服务
+apitest/      隔离验收环境、接口和浏览器测试
+scripts/      验证与文档维护脚本
+docs/         功能说明和验证记录
+openspec/     需求、设计、规格和任务
 ```
 
-## 开发与测试
-
-本地检查需要 Go 1.22 或更新版本，以及 Node.js/npm；前端 Docker 构建使用 Node.js 22。以下命令从仓库根目录执行：
+本地检查需要 Go 1.22+、Node.js 和 npm；前端 Docker 构建使用 Node.js 22。在仓库根目录执行：
 
 ```sh
 (cd backend && go test ./...)
@@ -139,30 +119,21 @@ openspec/     需求、设计、规格与任务记录
 (cd backend && go run ./cmd/openapi -check)
 ```
 
-前端开发服务器通过 `cd frontend && npm run dev` 启动，默认将 `/api` 等请求代理到本机 `8081`。需要自行启动本地 API；默认 Compose 不向宿主机发布这个端口。
+前端开发用 `cd frontend && npm run dev`，默认代理到本机 `8081`。需要另行启动本地 API；默认 Compose 不发布这个端口。
 
-需要验证 API、数据库和完整对话链路时，可启动独立验收环境：
+完整的接口验收可运行 `sh apitest/run_lesson6.sh`。脚本需要 Python 3 和 Docker，会在项目 `.venv` 安装依赖，以独立的 `campusclaw-lesson6` Compose 项目启动服务、生成测试凭据并写入测试数据，不读取应用 `.env`。报告写入 `apitest/reports/`，浏览器验收方式见 [MCP 接入说明](docs/LESSON-6.md#验证)。
 
-```sh
-sh apitest/run_lesson6.sh
-```
+隔离验收使用真实 MySQL、Qdrant 和 MCP 服务，对话模型由模拟网关提供。因此，接口验收通过不代表真实模型的回答质量或工具选择已验证。
 
-脚本使用独立的 `campusclaw-lesson6` Compose 项目和测试数据卷，不读取应用 `.env`；会生成测试凭据、在项目 `.venv` 安装依赖并写入测试数据。报告位于 `apitest/reports/`。浏览器验收与缓存镜像方式见 [MCP 接入说明](docs/LESSON-6.md#验证)。
+修改 API 后需重新生成 OpenAPI 并检查；修改需求或规格后，运行 `openspec validate --all --strict`。提交时请把功能改动和无关整理分开，并在 PR 中说明实际做过的验证。
 
-隔离验收使用真实 MySQL、Qdrant、MCP 服务和模拟模型。它能检查接口、权限与调用流程，真实模型的回答质量和工具选择仍需单独验证。已有测试结果见 [AI 能力验证记录](docs/AI-CAPABILITIES-VALIDATION.md)。
+## 常见问题
 
-修改 API 后请重新生成 OpenAPI 并运行检查；修改需求或规格时，使用 OpenSpec CLI 执行 `openspec validate --all --strict`。
+**为什么上传不了 PDF？** 当前只支持 UTF-8 的 `.txt` 和 `.md`，不解析 PDF、Word 或图片。默认上传上限为 5 MiB，可通过 `MAX_UPLOAD_BYTES` 调整。
 
-## 数据维护
+**重启后数据还在吗？** `docker compose down` 和 `docker compose up -d` 会保留数据库、上传文件及向量数据。`docker compose down -v` 会删除数据卷，只在需要清空本地数据时使用。
 
-停止、重新启动服务会保留数据库、上传文件和向量数据：
-
-```sh
-docker compose down
-docker compose up -d
-```
-
-更换嵌入模型或维度后，需要重建索引。以下命令保留材料原文，重建向量集合并重新排队索引任务：
+**换了嵌入模型怎么办？** 修改模型及维度配置后，停止 API 并重建索引，材料原文会保留：
 
 ```sh
 docker compose stop api
@@ -170,24 +141,19 @@ docker compose run --rm api reindex-all
 docker compose up -d api web
 ```
 
-索引完成前，检索结果可能不完整。单份材料可在页面中重新索引；`docker compose down -v` 会删除全部 Compose 数据卷，仅在明确需要清空本地数据时使用。
+索引完成前，检索结果可能不完整。只需重建某份材料时，在页面中操作即可。
 
-## 当前限制
+**能直接给学校部署使用吗？** 当前是课程项目，按单实例 Compose 运行，使用预置账号，没有自助注册、改密、OAuth/SSO 或作业成绩管理。公网使用还需要配置 HTTPS；多实例运行需要调整进程内登录限流等实现。MCP 仅支持 `2025-06-18` 的 HTTP 工具子集，不支持 stdio、资源、提示模板或会话恢复。
 
-- 材料仅支持 UTF-8 文本和 Markdown，默认上传上限 5 MiB，可通过 `MAX_UPLOAD_BYTES` 调整；暂不解析 PDF、Word 或图片。
-- 提供预置账号，没有自助注册、改密、OAuth/SSO、作业或成绩管理。
-- MCP 兼容 `2025-06-18` 的 HTTP 工具子集，不支持 stdio、资源、提示模板、会话恢复或通用写入工具。
-- 当前按单实例 Compose 运行，登录限流保存在 API 进程内；多副本部署需要改造。默认配置也不包含公网 HTTPS 和高可用部署。
-
-## 详细文档
+## 文档
 
 | 文档 | 内容 |
 | --- | --- |
-| [AI 能力操作说明](docs/AI-CAPABILITIES.md) | 预置助手绑定知识库、标准技能接入 MCP |
-| [身份认证与知识库实现](docs/AUTH-AND-KNOWLEDGE.md) | Bearer 登录、班级隔离、材料入库、检索与问答 |
-| [助手、技能与流式会话](docs/LESSON-5.md) | 会话保存、SSE 事件、OpenAPI 生成和早期验收流程 |
-| [MCP 接入说明](docs/LESSON-6.md) | 工具发现、版本批准、调用配额、审计和隔离测试 |
-| [AI 能力验证记录](docs/AI-CAPABILITIES-VALIDATION.md) | 已执行的检查、证据位置与尚未验证的事项 |
-| [OpenSpec 变更](openspec/changes/) | 各次功能的需求、设计、规格与任务 |
+| [AI 能力操作说明](docs/AI-CAPABILITIES.md) | 助手绑定知识库、标准技能接入 MCP |
+| [身份认证与知识库实现](docs/AUTH-AND-KNOWLEDGE.md) | 登录、班级隔离、材料入库、检索与问答 |
+| [助手、技能与流式会话](docs/LESSON-5.md) | 会话保存、SSE 事件与 OpenAPI 生成 |
+| [MCP 接入说明](docs/LESSON-6.md) | 工具发现、版本批准、配额、审计与隔离测试 |
+| [AI 能力验证记录](docs/AI-CAPABILITIES-VALIDATION.md) | 已执行的检查、证据与待验证事项 |
+| [OpenSpec 变更](openspec/changes/) | 各次功能的需求、设计与任务 |
 
-课程文档保留了对应迭代时的接口和行为说明；后续新增能力以当前代码及运行中的 [OpenAPI 文档](http://localhost:8080/openapi.json) 为准。
+课程文档记录对应迭代的实现；接口以当前代码和运行中的 [OpenAPI 文档](http://localhost:8080/openapi.json) 为准。
